@@ -1,0 +1,69 @@
+/* Student Submissions tab: scrolling, sorting toolbar and expandable preview */
+
+.submissions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.submissions-toolbar select {
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--bg-white);
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--color-text-dark);
+}
+
+.submissions-scroll {
+  max-height: calc(100vh - 360px);
+  min-height: 240px;
+  overflow-y: auto;
+}
+
+.submissions-table--sticky th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-white);
+  z-index: 1;
+}
+
+.submission-row-open {
+  background: var(--bg-question);
+}
+
+.submission-preview-row td {
+  background: var(--bg-question);
+  padding: 0;
+}
+
+.submission-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px 20px;
+  font-size: 13px;
+  color: var(--color-text-dark);
+}
+
+.submission-preview p,
+.submission-preview ul {
+  margin: 4px 0 0;
+}
+
+.submission-preview ul {
+  padding-left: 18px;
+}
+
+.preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
