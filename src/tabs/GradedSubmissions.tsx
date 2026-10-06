@@ -1,19 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
 import { ASSIGNMENT_ID, assessmentConfigured, getResults } from '../api/assessment';
-import { SAMPLE_ROWS, rowFromResult } from './submissionRows';
-import type { SubmissionRow, SubmissionStatus } from './submissionRows';
-
-type SortKey = 'lastName' | 'score' | 'status';
-
-// Lower rank sorts first in ascending order: items needing attention come first.
-const STATUS_RANK: Record<SubmissionStatus, number> = { 'Flagged ⚠': 0, 'Needs Review': 1, 'Graded': 2 };
-
-function compare(a: SubmissionRow, b: SubmissionRow, key: SortKey): number {
-  if (key === 'score') return a.score - b.score;
-  if (key === 'status') return STATUS_RANK[a.status] - STATUS_RANK[b.status];
-  return a.lastName.localeCompare(b.lastName) || a.name.localeCompare(b.name);
-}
+import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
+import type { SortKey, SubmissionRow, SubmissionStatus } from './submissionRows';
 
 function statusBadge(status: SubmissionStatus) {
   if (status === 'Graded') return <span className="badge badge-graded">Graded</span>;
@@ -52,7 +41,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
   const loading = assessmentConfigured && liveRows === null && loadError === null;
   const usingSample = !assessmentConfigured || loadError !== null;
   const data = usingSample ? SAMPLE_ROWS : (liveRows ?? []);
-  const rows = [...data].sort((a, b) => (descending ? -1 : 1) * compare(a, b, sortKey));
+  const rows = [...data].sort((a, b) => (descending ? -1 : 1) * compareRows(a, b, sortKey));
 
   const graded = data.filter(r => r.status === 'Graded').length;
   const review = data.filter(r => r.status === 'Needs Review').length;

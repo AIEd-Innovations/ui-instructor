@@ -18,6 +18,19 @@ export interface SubmissionRow {
   flags: string[];
 }
 
+// ── Sorting ─────────────────────────────────────────────────────────────────
+
+export type SortKey = 'lastName' | 'score' | 'status';
+
+// Lower rank sorts first in ascending order: items needing attention come first.
+const STATUS_RANK: Record<SubmissionStatus, number> = { 'Flagged ⚠': 0, 'Needs Review': 1, 'Graded': 2 };
+
+export function compareRows(a: SubmissionRow, b: SubmissionRow, key: SortKey): number {
+  if (key === 'score') return a.score - b.score;
+  if (key === 'status') return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+  return a.lastName.localeCompare(b.lastName) || a.name.localeCompare(b.name);
+}
+
 // ── Live data ───────────────────────────────────────────────────────────────
 
 // The agent only knows a student_id (e.g. "alex_morgan"), so derive a display name from it.
@@ -30,7 +43,7 @@ function displayName(studentId: string): string {
 }
 
 // The agent always reports status "completed", so derive the table status from review and anomaly data.
-function deriveStatus(r: AssessmentResult): SubmissionStatus {
+export function deriveStatus(r: AssessmentResult): SubmissionStatus {
   const risk = r.anomaly_report?.overall_risk;
   const priority = r.manual_review?.priority;
   if (r.final_score !== null) return 'Graded'; // an instructor has already reviewed it
