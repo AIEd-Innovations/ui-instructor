@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import Modal from './Modal';
+import { useLab } from '../state/labStore';
 
 interface Props {
   onClose: () => void;
@@ -7,41 +8,74 @@ interface Props {
 
 type Mode = 'write' | 'file';
 
+// POST /curriculum/{lab}/upload-instructions takes plain text, so a dropped file
+// is read in the browser and its contents become the instructions. That limits
+// this to text formats — a PDF would need a parser the UI does not have.
+const ACCEPT = '.txt,.md';
+const MAX_BYTES = 5 * 1024 * 1024;
+
 export default function UploadAgentModal({ onClose }: Props) {
+  const { lab, uploadInstructions } = useLab();
   const [mode, setMode] = useState<Mode>('write');
-  const [instructions, setInstructions] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [instructions, setInstructions] = useState(lab?.agent_instructions ?? '');
+  const [filename, setFilename] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleFiles(files: FileList | null) {
-    if (files && files[0]) setFile(files[0]);
+  async function readFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!/\.(txt|md)$/i.test(file.name)) {
+      setError(`${file.name} is not a .txt or .md file.`);
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError(`${file.name} is over 5 MB.`);
+      return;
+    }
+
+    setError(null);
+    setFilename(file.name);
+    setInstructions(await file.text());
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    handleFiles(e.dataTransfer.files);
-  }
+  const canSave = instructions.trim().length > 0 && !saving;
 
-  const canSave = mode === 'write' ? instructions.trim().length > 0 : file !== null;
+  async function save() {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await uploadInstructions(instructions.trim());
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSaving(false);
+    }
+  }
 
   return (
-    <Modal title="Upload Agent Instructions" onClose={onClose} width={520}>
+    <Modal title="Upload Agent Instructions" onClose={saving ? () => {} : onClose} width={520}>
       <p className="modal-subtitle">
-        Define how the AI agent should guide students during this lab.
+        Define how the AI agent should guide students during this lab. Stored with the
+        lab and included in every generation prompt.
       </p>
 
       <div className="modal-tab-switch">
         <button
           className={`modal-tab${mode === 'write' ? ' modal-tab-active' : ''}`}
           onClick={() => setMode('write')}
+          disabled={saving}
         >
           Write Instructions
         </button>
         <button
           className={`modal-tab${mode === 'file' ? ' modal-tab-active' : ''}`}
           onClick={() => setMode('file')}
+          disabled={saving}
         >
           Upload File
         </button>
@@ -50,45 +84,50 @@ export default function UploadAgentModal({ onClose }: Props) {
       {mode === 'write' ? (
         <textarea
           className="modal-textarea"
-          placeholder={`e.g. "Only give progressive hints. Never reveal the full solution. If a student asks for the answer directly, redirect them with a guiding question. Focus hints on pointer manipulation and memory management."`}
+          placeholder={'e.g. "Only give progressive hints. Never reveal the full solution. If a student asks for the answer directly, redirect them with a guiding question."'}
           value={instructions}
+          disabled={saving}
           onChange={e => setInstructions(e.target.value)}
           rows={8}
         />
       ) : (
         <>
           <div
-            className={`dropzone${dragging ? ' dropzone-active' : ''}${file ? ' dropzone-filled' : ''}`}
-            onClick={() => inputRef.current?.click()}
+            className={`dropzone${dragging ? ' dropzone-active' : ''}${filename ? ' dropzone-filled' : ''}`}
+            onClick={() => !saving && inputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
+            onDrop={e => { e.preventDefault(); setDragging(false); void readFile(e.dataTransfer.files); }}
           >
             <input
               ref={inputRef}
               type="file"
-              accept=".txt,.md,.pdf"
+              accept={ACCEPT}
               style={{ display: 'none' }}
-              onChange={e => handleFiles(e.target.files)}
+              onChange={e => void readFile(e.target.files)}
             />
-            {file ? (
+            {filename ? (
               <>
                 <div className="dropzone-icon">📄</div>
-                <div className="dropzone-filename">{file.name}</div>
+                <div className="dropzone-filename">{filename}</div>
+                <div className="dropzone-meta">
+                  {instructions.length.toLocaleString()} characters loaded
+                </div>
               </>
             ) : (
               <>
                 <div className="dropzone-icon">⬆</div>
                 <div className="dropzone-cta">Drag &amp; drop your instructions file</div>
                 <div className="dropzone-meta">or click to browse</div>
-                <div className="dropzone-hint">TXT, MD, PDF · Max 5 MB</div>
+                <div className="dropzone-hint">TXT or MD · max 5 MB</div>
               </>
             )}
           </div>
-          {file && (
+          {filename && (
             <button
               className="dropzone-clear"
-              onClick={e => { e.stopPropagation(); setFile(null); }}
+              disabled={saving}
+              onClick={e => { e.stopPropagation(); setFilename(null); setInstructions(''); }}
             >
               Remove file
             </button>
@@ -96,14 +135,12 @@ export default function UploadAgentModal({ onClose }: Props) {
         </>
       )}
 
+      {error && <div className="notice notice-error">{error}</div>}
+
       <div className="modal-footer">
-        <button className="btn-outline" onClick={onClose}>Cancel</button>
-        <button
-          className="btn-primary"
-          disabled={!canSave}
-          onClick={onClose}
-        >
-          Save Instructions
+        <button className="btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
+        <button className="btn-primary" disabled={!canSave} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save Instructions'}
         </button>
       </div>
     </Modal>
