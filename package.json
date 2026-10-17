@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
+    "dev:setup": "node scripts/dev-all.mjs setup",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
