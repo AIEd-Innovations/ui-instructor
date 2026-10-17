@@ -1,84 +1,126 @@
 import { useRef, useState } from 'react';
 import Modal from './Modal';
+import { formatSize } from '../api/curriculum';
+import { useLab } from '../state/labStore';
 
 interface Props {
   onClose: () => void;
 }
 
+// The agent extracts text with pypdf and rejects anything else, so only PDFs are
+// offered here. Image-only PDFs are rejected too — it returns PDF_NO_TEXT.
+const ACCEPT = '.pdf';
+const MAX_BYTES = 25 * 1024 * 1024;
+
 export default function UploadMaterialModal({ onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const { uploadMaterial } = useLab();
 
-  function handleFiles(files: FileList | null) {
-    if (files && files[0]) setFile(files[0]);
+  function addFiles(incoming: FileList | null) {
+    if (!incoming) return;
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+
+    for (const file of Array.from(incoming)) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) rejected.push(`${file.name} (not a PDF)`);
+      else if (file.size > MAX_BYTES) rejected.push(`${file.name} (over 25 MB)`);
+      else accepted.push(file);
+    }
+
+    setError(rejected.length ? `Skipped: ${rejected.join(', ')}` : null);
+    setFiles(current => [...current, ...accepted]);
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    handleFiles(e.dataTransfer.files);
+  function removeFile(name: string) {
+    setFiles(current => current.filter(file => file.name !== name));
   }
 
-  function formatSize(bytes: number) {
-    return bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  async function upload() {
+    if (files.length === 0 || uploading) return;
+    setUploading(true);
+    setError(null);
+    try {
+      await uploadMaterial(files);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setUploading(false);
+    }
   }
 
   return (
-    <Modal title="Upload Lab Material" onClose={onClose}>
+    <Modal title="Upload Lab Material" onClose={uploading ? () => {} : onClose}>
       <p className="modal-subtitle">
-        Attach the lab specification or supporting files for this session.
+        PDFs the agent should use as context when it writes the lab. The text is
+        extracted and kept; re-generate afterwards to apply it.
       </p>
 
       <div
-        className={`dropzone${dragging ? ' dropzone-active' : ''}${file ? ' dropzone-filled' : ''}`}
-        onClick={() => inputRef.current?.click()}
+        className={`dropzone${dragging ? ' dropzone-active' : ''}${files.length ? ' dropzone-filled' : ''}`}
+        onClick={() => !uploading && inputRef.current?.click()}
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
+        onDrop={e => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
       >
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.doc,.docx,.txt"
+          accept={ACCEPT}
+          multiple
           style={{ display: 'none' }}
-          onChange={e => handleFiles(e.target.files)}
+          onChange={e => addFiles(e.target.files)}
         />
-        {file ? (
+        {files.length > 0 ? (
           <>
             <div className="dropzone-icon">📄</div>
-            <div className="dropzone-filename">{file.name}</div>
-            <div className="dropzone-meta">{formatSize(file.size)}</div>
+            <div className="dropzone-filename">
+              {files.length} file{files.length > 1 ? 's' : ''} ready
+            </div>
+            <div className="dropzone-meta">Click to add more</div>
           </>
         ) : (
           <>
             <div className="dropzone-icon">⬆</div>
-            <div className="dropzone-cta">Drag &amp; drop your file here</div>
+            <div className="dropzone-cta">Drag &amp; drop your PDFs here</div>
             <div className="dropzone-meta">or click to browse</div>
-            <div className="dropzone-hint">PDF, DOCX, TXT · Max 25 MB</div>
+            <div className="dropzone-hint">PDF only · max 25 MB each</div>
           </>
         )}
       </div>
 
-      {file && (
-        <button
-          className="dropzone-clear"
-          onClick={e => { e.stopPropagation(); setFile(null); }}
-        >
-          Remove file
-        </button>
+      {files.length > 0 && (
+        <ul className="file-list">
+          {files.map(file => (
+            <li key={file.name}>
+              <span className="file-list-name">{file.name}</span>
+              <span className="file-list-meta">{formatSize(file.size)}</span>
+              <button
+                className="file-list-remove"
+                onClick={() => removeFile(file.name)}
+                disabled={uploading}
+                aria-label={`Remove ${file.name}`}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
+      {error && <div className="notice notice-error">{error}</div>}
+
       <div className="modal-footer">
-        <button className="btn-outline" onClick={onClose}>Cancel</button>
+        <button className="btn-outline" onClick={onClose} disabled={uploading}>Cancel</button>
         <button
           className="btn-primary"
-          disabled={!file}
-          onClick={onClose}
+          disabled={files.length === 0 || uploading}
+          onClick={() => void upload()}
         >
-          Upload
+          {uploading ? 'Extracting text…' : 'Upload'}
         </button>
       </div>
     </Modal>
