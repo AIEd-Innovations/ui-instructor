@@ -33,14 +33,17 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
 
   useEffect(() => {
     if (!assessmentConfigured) return;
+    let cancelled = false; // ignore the answer if the tab was closed before it arrived
     getResults()
-      .then(results => setLiveRows(results.map(rowFromResult)))
-      .catch(e => setLoadError(e instanceof Error ? e.message : 'Request failed'));
+      .then(results => { if (!cancelled) setLiveRows(results.map(rowFromResult)); })
+      .catch(e => { if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Request failed'); });
+    return () => { cancelled = true; };
   }, []);
 
   const loading = assessmentConfigured && liveRows === null && loadError === null;
-  const usingSample = !assessmentConfigured || loadError !== null;
-  const data = usingSample ? SAMPLE_ROWS : (liveRows ?? []);
+  // Sample rows are a demo for when no agent is configured. They are never shown in place of
+  // real results that failed to load: they contain invented integrity flags about named students.
+  const data = !assessmentConfigured ? SAMPLE_ROWS : (liveRows ?? []);
   const rows = [...data].sort((a, b) => (descending ? -1 : 1) * compareRows(a, b, sortKey));
 
   const graded = data.filter(r => r.status === 'Graded').length;
@@ -56,7 +59,11 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
       <div className="content-header">
         <div className="content-title">
           <h2>Student Submissions — Lab 4</h2>
-          <p>{data.length} submissions · {graded} graded · {review} needs review · {flagged} flagged</p>
+          <p>
+            {loadError
+              ? 'Results unavailable'
+              : `${data.length} submissions · ${graded} graded · ${review} needs review · ${flagged} flagged`}
+          </p>
         </div>
         <div className="content-actions">
           <button className="btn-outline">Download All (CSV)</button>
@@ -68,8 +75,8 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
       <div className={`submissions-source${loadError ? ' submissions-source--error' : ''}`} role={loadError ? 'alert' : undefined}>
         <strong>AI assessment:</strong>{' '}
         {loading && 'loading results…'}
-        {!loading && !assessmentConfigured && 'agent not configured, showing sample data.'}
-        {!loading && assessmentConfigured && loadError && `${loadError} Showing sample data.`}
+        {!loading && !assessmentConfigured && 'demo mode: the assessment agent is not configured, so these are sample students.'}
+        {!loading && assessmentConfigured && loadError && `${loadError} No results can be shown until it is reachable.`}
         {!loading && assessmentConfigured && !loadError && `connected · ${ASSIGNMENT_ID}`}
       </div>
 
@@ -101,7 +108,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
             </tr>
           </thead>
           <tbody>
-            {!loading && rows.length === 0 && (
+            {!loading && !loadError && rows.length === 0 && (
               <tr><td colSpan={5} className="submissions-empty">No graded submissions yet for {ASSIGNMENT_ID}.</td></tr>
             )}
             {rows.map(row => {
@@ -113,7 +120,11 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                     tabIndex={0}
                     aria-expanded={isOpen}
                     onClick={() => toggle(row.id)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(row.id); } }}
+                    onKeyDown={e => {
+                      // Keys pressed on a button inside the row (Download) must reach that button.
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(row.id); }
+                    }}
                   >
                     <td style={{ fontWeight: 500 }}>{row.name}</td>
                     <td style={{ fontWeight: 600 }}>{row.score}</td>
@@ -141,7 +152,9 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                           )}
                           <List title="Strengths" items={row.strengths} />
                           <List title="Improvements" items={row.improvements} />
-                          <button className="btn-outline" onClick={() => onSelectStudent(row.name)}>Full student details</button>
+                          {row.hasDetails && (
+                            <button className="btn-outline" onClick={() => onSelectStudent(row.name)}>Full student details</button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -104,6 +104,11 @@ describe('rowFromResult', () => {
   it('never invents submission text', () => {
     expect(rowFromResult(result()).submissionText).toBeNull();
   });
+
+  it('does not offer the legacy detail modal for real students, only for sample rows', () => {
+    expect(rowFromResult(result()).hasDetails).toBe(false);
+    expect(SAMPLE_ROWS.every(r => r.hasDetails)).toBe(true);
+  });
 });
 
 describe('compareRows', () => {

@@ -16,6 +16,8 @@ export interface SubmissionRow {
   strengths: string[];
   improvements: string[];
   flags: string[];
+  /** True only for sample rows: StudentDetailModal has hard-coded data for those names, not for real students. */
+  hasDetails: boolean;
 }
 
 // ── Sorting ─────────────────────────────────────────────────────────────────
@@ -74,6 +76,7 @@ export function rowFromResult(r: AssessmentResult): SubmissionRow {
     flags: (r.anomaly_report?.flags ?? []).map(
       f => `${f.flag_type} (${f.severity}, ${Math.round(f.confidence * 100)}% confidence): ${f.evidence}`,
     ),
+    hasDetails: false,
   };
 }
 
@@ -100,6 +103,7 @@ function sample(
     strengths: [],
     improvements: [],
     flags: [],
+    hasDetails: true,
   };
 }
 
