@@ -1428,3 +1428,6 @@ h1, h2, p {
 .lab-tools { margin-bottom: 16px; }
 .lab-tools-row { display: flex; align-items: center; gap: 16px; }
 .lab-tools-issues { margin: 12px 0 0; padding-left: 18px; font-size: 12px; color: var(--color-text-dark); }
+
+.panel-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.confirm-actions { display: inline-flex; gap: 8px; margin-left: 12px; vertical-align: middle; }

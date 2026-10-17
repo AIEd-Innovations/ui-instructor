@@ -37,6 +37,8 @@ export default function App() {
   const [labBusy, setLabBusy] = useState(false);
   const [labError, setLabError] = useState<string | null>(null);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
+  // True once the agent has actually received materialFile (it is held locally until a lab exists).
+  const [materialSent, setMaterialSent] = useState(false);
 
   useEffect(() => {
     getLab()
@@ -59,18 +61,28 @@ export default function App() {
     }
   }
 
-  function handleGenerate(title: string, learningObjectives: string[]) {
-    return runLabAction(() => generateLab({ title, learningObjectives, file: materialFile ?? undefined }));
+  async function handleGenerate(title: string, learningObjectives: string[]) {
+    const ok = await runLabAction(() => generateLab({ title, learningObjectives, file: materialFile ?? undefined }));
+    if (ok && materialFile) setMaterialSent(true);
+    return ok;
   }
 
-  function handleMaterialUploaded(file: File) {
-    setMaterialFile(file);
+  async function handleMaterialUploaded(file: File) {
+    if (labBusy) return; // the sidebar buttons are disabled while busy; this guards the modal that was already open
+    if (!lab) {
+      // The agent stores material on an existing lab, so hold the file until the lab is generated.
+      setMaterialFile(file);
+      setMaterialSent(false);
+      return;
+    }
     // With a lab already generated, store the PDF and regenerate so the material is applied.
-    if (lab) {
-      void runLabAction(async () => {
-        await uploadMaterial(file);
-        return generateLab({ title: lab.title, learningObjectives: lab.learning_objectives });
-      });
+    const ok = await runLabAction(async () => {
+      await uploadMaterial(file);
+      return generateLab({ title: lab.title, learningObjectives: lab.learning_objectives });
+    });
+    if (ok) {
+      setMaterialFile(file);
+      setMaterialSent(true);
     }
   }
 
@@ -114,15 +126,17 @@ export default function App() {
         <aside className={`left-panel${sidebarOpen ? '' : ' left-panel--collapsed'}`}>
           <div className="panel-section-label">Lab Material</div>
 
-          <button className="panel-btn panel-btn-ghost" onClick={() => setShowUploadMaterial(true)}>Upload Material</button>
-          <button className="panel-btn panel-btn-ghost" onClick={() => setShowUploadAgent(true)}>Customize Tutor Behavior</button>
+          <button className="panel-btn panel-btn-ghost" disabled={labBusy} onClick={() => setShowUploadMaterial(true)}>Upload Material</button>
+          <button className="panel-btn panel-btn-ghost" disabled={labBusy} onClick={() => setShowUploadAgent(true)}>Customize Tutor Behavior</button>
 
           {/* Materials list sits below the buttons so the buttons stay put as materials grow */}
           <div className="uploaded-file">
             {materialFile ? (
               <>
                 <div className="file-name">{materialFile.name}</div>
-                <div className="file-meta">Uploaded · {(materialFile.size / 1024).toFixed(0)} KB</div>
+                <div className="file-meta">
+                  {materialSent ? 'Uploaded' : 'Not sent yet: used when you generate the lab'} · {(materialFile.size / 1024).toFixed(0)} KB
+                </div>
               </>
             ) : lab?.material_content ? (
               <div className="file-name">Material uploaded</div>
@@ -157,7 +171,7 @@ export default function App() {
 
     {showUploadMaterial && <UploadMaterialModal
       willRegenerate={lab !== null}
-      onUploaded={handleMaterialUploaded}
+      onUploaded={file => void handleMaterialUploaded(file)}
       onClose={() => setShowUploadMaterial(false)}
     />}
     {showUploadAgent && (

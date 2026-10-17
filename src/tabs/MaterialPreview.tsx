@@ -16,11 +16,18 @@ interface Props {
 export default function MaterialPreview({ lab, busy, error, onGenerate, onApprove }: Props) {
   const [title, setTitle] = useState('');
   const [objectives, setObjectives] = useState('');
+  const [confirming, setConfirming] = useState(false);
 
   const objectiveList = objectives.split('\n').map(o => o.trim()).filter(Boolean);
   const canGenerate = !busy && (lab !== null || (title.trim() !== '' && objectiveList.length > 0));
 
   function generate() {
+    // Regenerating an existing lab discards its approval and quiz refinements, so ask first.
+    if (lab && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
     // With an existing lab, regenerate from its own title and objectives.
     void (lab ? onGenerate(lab.title, lab.learning_objectives) : onGenerate(title.trim(), objectiveList));
   }
@@ -50,6 +57,15 @@ export default function MaterialPreview({ lab, busy, error, onGenerate, onApprov
       </div>
 
       <hr className="content-divider" />
+      {confirming && (
+        <div className="status-line status-loading" role="alert">
+          Regenerating replaces this lab: it goes back to version 1 and pending approval, and any quiz refinements are lost.
+          <span className="confirm-actions">
+            <button className="btn-outline" disabled={busy} onClick={generate}>Regenerate</button>
+            <button className="btn-outline" onClick={() => setConfirming(false)}>Cancel</button>
+          </span>
+        </div>
+      )}
       <StatusLine busy={busy} error={error} />
       <LabTools lab={lab} pdfs={[{ kind: 'lab', label: 'Lab' }, { kind: 'rubric', label: 'Rubric' }]} />
 

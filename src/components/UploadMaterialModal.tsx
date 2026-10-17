@@ -76,7 +76,7 @@ export default function UploadMaterialModal({ willRegenerate, onUploaded, onClos
 
       {error && <div className="status-line status-error" role="alert">{error}</div>}
       {willRegenerate && (
-        <p className="modal-subtitle">The lab will be regenerated with this material.</p>
+        <p className="modal-subtitle">Uploading regenerates the lab with this material: it goes back to version 1 and pending approval, and any quiz refinements are lost.</p>
       )}
 
       {file && (
