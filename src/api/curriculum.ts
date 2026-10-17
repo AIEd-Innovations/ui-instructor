@@ -11,6 +11,8 @@ export const INSTRUCTOR_ID: string = import.meta.env.VITE_INSTRUCTOR_ID ?? 'inst
 
 export const isConfigured = (): boolean => BASE !== '';
 
+const REQUEST_TIMEOUT_MS = 150_000;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type QuestionType = 'short_answer' | 'multiple_choice' | 'code' | 'essay';
@@ -102,8 +104,8 @@ export class AgentError extends Error {
   code: string;
   status: number;
 
-  constructor(message: string, code: string, status: number) {
-    super(message);
+  constructor(message: string, code: string, status: number, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = 'AgentError';
     this.code = code;
     this.status = status;
@@ -136,15 +138,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
 
+  // Generation takes 30-60 s on a real model; give up well after that instead of hanging forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, init);
-  } catch {
+    res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new AgentError('The Curriculum Designer took too long to respond.', 'TIMEOUT', 0, err);
+    }
     throw new AgentError(
       `Could not reach the Curriculum Designer at ${BASE}. Is it running?`,
       'UNREACHABLE',
       0,
+      err,
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) throw await toAgentError(res);
@@ -241,6 +253,19 @@ export function deleteFile(fileId: string, labId: string = LAB_ID): Promise<Dele
   return request<DeleteFileAck>(`/curriculum/${labId}/files/${fileId}`, {
     method: 'DELETE',
   });
+}
+
+// ── Proofreading ─────────────────────────────────────────────────────────────
+
+export interface TypoIssue {
+  location: string;
+  type: 'typo' | 'inconsistency' | 'ambiguity' | 'factual';
+  suggestion: string;
+}
+
+/** Proofreads the spec, quiz and rubric. Does not change the lab. */
+export function checkTypos(labId: string = LAB_ID): Promise<{ issues_found: number; issues: TypoIssue[] }> {
+  return request(`/curriculum/${labId}/check-typos`, { method: 'POST' });
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────

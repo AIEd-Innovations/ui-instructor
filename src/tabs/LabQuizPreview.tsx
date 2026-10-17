@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { exportUrl } from '../api/curriculum';
-import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar } from '../components/labBits';
+import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -68,6 +68,8 @@ export default function LabQuizPreview() {
       </div>
 
       <hr className="content-divider" />
+
+      <TypoCheck />
 
       {actionError && <Notice kind="error">{actionError}</Notice>}
 
