@@ -1,7 +1,9 @@
 // Small pieces shared by the Lab Tasks and Lab Quiz tabs.
 
 import { useState } from 'react';
-import type { ApprovalStatus } from '../api/curriculum';
+import { checkTypos } from '../api/curriculum';
+import type { ApprovalStatus, TypoIssue } from '../api/curriculum';
+import { useLab } from '../state/labStore';
 
 const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   pending: 'Pending approval',
@@ -34,6 +36,45 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
     <div className="content-card empty-state">
       <Notice kind="error">{message}</Notice>
       <button className="btn-outline" onClick={onRetry}>Try again</button>
+    </div>
+  );
+}
+
+/** Proofreads the whole lab (spec, quiz, rubric) and lists what it finds. */
+export function TypoCheck() {
+  const { busy } = useLab();
+  const [checking, setChecking] = useState(false);
+  const [issues, setIssues] = useState<TypoIssue[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setChecking(true);
+    setError(null);
+    try {
+      setIssues((await checkTypos()).issues);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <div className="typo-check">
+      <button className="btn-outline" onClick={() => void run()} disabled={busy || checking}>
+        {checking ? 'Checking…' : 'Check typos'}
+      </button>
+      {error && <Notice kind="error">{error}</Notice>}
+      {issues !== null && issues.length === 0 && <Notice kind="info">No issues found.</Notice>}
+      {issues !== null && issues.length > 0 && (
+        <ul className="objective-list">
+          {issues.map(issue => (
+            <li key={`${issue.location}-${issue.suggestion}`}>
+              <strong>{issue.type}</strong> · {issue.location}: {issue.suggestion}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

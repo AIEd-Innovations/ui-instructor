@@ -1611,3 +1611,6 @@ h1, h2, p {
   color: var(--color-text-muted);
   font-size: 11px;
 }
+
+/* Typo check (Lab Tasks and Lab Quiz) */
+.typo-check { margin-bottom: 16px; }

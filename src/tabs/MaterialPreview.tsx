@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { exportUrl } from '../api/curriculum';
 import GenerateLabModal from '../components/GenerateLabModal';
-import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar } from '../components/labBits';
+import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
 export default function MaterialPreview() {
@@ -17,6 +17,7 @@ export default function MaterialPreview() {
     <GenerateLabModal
       initialTitle={lab?.title ?? ''}
       initialObjectives={lab?.learning_objectives ?? []}
+      replacesExisting={lab !== null}
       onGenerate={generate}
       onClose={() => setShowGenerate(false)}
     />
@@ -79,6 +80,8 @@ export default function MaterialPreview() {
         </div>
 
         <hr className="content-divider" />
+
+        <TypoCheck />
 
         {actionError && <Notice kind="error">{actionError}</Notice>}
 

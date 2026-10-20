@@ -9,6 +9,8 @@ import type { GenerateParams } from '../api/curriculum';
 interface Props {
   initialTitle?: string;
   initialObjectives?: string[];
+  /** True when a lab already exists: generating again replaces it, so say so. */
+  replacesExisting?: boolean;
   onGenerate: (params: GenerateParams) => Promise<void>;
   onClose: () => void;
 }
@@ -16,6 +18,7 @@ interface Props {
 export default function GenerateLabModal({
   initialTitle = '',
   initialObjectives = [],
+  replacesExisting = false,
   onGenerate,
   onClose,
 }: Props) {
@@ -59,6 +62,13 @@ export default function GenerateLabModal({
         The agent writes the lab spec, quiz and rubric from these. Any material you
         uploaded is used as context.
       </p>
+
+      {replacesExisting && (
+        <div className="notice notice-error">
+          This replaces the current lab: it goes back to version 1 and pending approval, and any quiz
+          refinements are lost.
+        </div>
+      )}
 
       <label className="field">
         <span className="field-label">Lab title</span>
@@ -131,7 +141,7 @@ export default function GenerateLabModal({
       <div className="modal-footer">
         <button className="btn-outline" onClick={onClose} disabled={working}>Cancel</button>
         <button className="btn-primary" onClick={() => void submit()} disabled={!canSubmit}>
-          {working ? 'Generating… this takes a moment' : 'Generate'}
+          {working ? 'Generating… this takes a moment' : replacesExisting ? 'Replace lab' : 'Generate'}
         </button>
       </div>
     </Modal>
