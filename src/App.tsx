@@ -107,9 +107,10 @@ function Dashboard() {
         </header>
 
         {!isConfigured() && (
-          <div className="notice notice-error config-banner">
-            VITE_CURRICULUM_URL is not set, so this UI cannot reach the Curriculum
-            Designer. Copy <code>.env.example</code> to <code>.env</code> and set it.
+          <div className="notice config-banner">
+            The Curriculum Designer is not connected yet, so lab generation is
+            unavailable. (Developers: set <code>VITE_CURRICULUM_URL</code> — see{' '}
+            <code>.env.example</code> — and redeploy.)
           </div>
         )}
 
