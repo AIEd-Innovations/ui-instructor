@@ -8,7 +8,7 @@ import GradedSubmissions from './tabs/GradedSubmissions';
 import Statistics from './tabs/Statistics';
 // import AgentCollaboration from './tabs/AgentCollaboration';
 import UploadMaterialModal from './components/UploadMaterialModal';
-import UploadAgentModal from './components/UploadAgentModal';
+import AgentConfigModal from './components/AgentConfigModal';
 import StudentDetailModal from './components/StudentDetailModal';
 import LoginPage from './components/LoginPage';
 import { LabProvider } from './state/LabContext';
@@ -70,7 +70,7 @@ function Dashboard() {
   const { lab } = useLab();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
-  const [showUploadAgent, setShowUploadAgent] = useState(false);
+  const [showAgentConfig, setShowAgentConfig] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -123,7 +123,7 @@ function Dashboard() {
             <button className="panel-btn panel-btn-ghost" onClick={() => setShowUploadMaterial(true)}>
               Upload Material
             </button>
-            <button className="panel-btn panel-btn-ghost" onClick={() => setShowUploadAgent(true)}>
+            <button className="panel-btn panel-btn-ghost" onClick={() => setShowAgentConfig(true)}>
               Customize Tutor Behavior
             </button>
           </aside>
@@ -147,7 +147,7 @@ function Dashboard() {
       </div>
 
       {showUploadMaterial && <UploadMaterialModal onClose={() => setShowUploadMaterial(false)} />}
-      {showUploadAgent && <UploadAgentModal onClose={() => setShowUploadAgent(false)} />}
+      {showAgentConfig && <AgentConfigModal onClose={() => setShowAgentConfig(false)} />}
       {selectedStudent && (
         <StudentDetailModal
           studentName={selectedStudent}
