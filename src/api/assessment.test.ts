@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getResults } from './assessment';
+import { getAssessmentAgentConfig, getResults, saveAssessmentAgentConfig } from './assessment';
 import type { AssessmentResult } from './assessment';
 
 function record(studentId: string, createdAt: string, score: number): AssessmentResult {
@@ -55,5 +55,30 @@ describe('getResults', () => {
   it('says so when the agent cannot be reached', async () => {
     stubFetch(async () => { throw new TypeError('Failed to fetch'); });
     await expect(getResults()).rejects.toThrow('Could not reach the assessment agent. Is it running?');
+  });
+});
+
+describe('assessment agent configuration', () => {
+  const agentConfig = {
+    tone: 'Analytical' as const,
+    strictness: 'High' as const,
+    support_style: 'Concise feedback' as const,
+    feedback_focus: 'Improve accuracy' as const,
+    guardrail: 'Escalate uncertainty to the instructor' as const,
+    instructions: '',
+  };
+
+  it('loads the assignment configuration', async () => {
+    stubFetch(async () => Response.json(agentConfig));
+    await expect(getAssessmentAgentConfig()).resolves.toEqual(agentConfig);
+  });
+
+  it('saves the assignment configuration as JSON', async () => {
+    stubFetch(async () => Response.json(agentConfig));
+    await saveAssessmentAgentConfig(agentConfig);
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/assignments/hw1_sorting/agent-config'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(agentConfig) }),
+    );
   });
 });
