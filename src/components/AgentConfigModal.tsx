@@ -130,7 +130,12 @@ export default function AgentConfigModal({ onClose }: Props) {
                 </div>
                 <label className="agent-config-field">
                   <span>Custom instructions</span>
-                  <textarea value={activeConfig.instructions} onChange={event => updateActive({ instructions: event.target.value })} rows={8} />
+                  <textarea
+                    value={activeConfig.instructions}
+                    onChange={event => updateActive({ instructions: event.target.value })}
+                    placeholder={'Role: Explain the role this agent should play in your course.\n\nTeaching approach: Describe how it should help students learn.\n\nBoundaries: State what it must never do.\n\nEscalation: Explain when it should ask you to review something.'}
+                    rows={8}
+                  />
                   <small>Include the agent’s role, the desired teaching approach, firm boundaries, and when it should send work to you for review.</small>
                 </label>
               </div>
