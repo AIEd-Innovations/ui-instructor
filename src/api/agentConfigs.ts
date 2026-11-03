@@ -1,5 +1,12 @@
-// UI-only configuration seam. Replace these stubs with the instructor config API
-// when persisted agent settings are available.
+import {
+  assessmentConfigured,
+  getAssessmentAgentConfig,
+  saveAssessmentAgentConfig,
+  type AssessmentAgentConfigPayload,
+} from './assessment';
+
+// The Assessment Agent is persisted through its API. The other entries remain
+// UI-only mock data until their respective services expose configuration APIs.
 export type AgentConfig = {
   id: 'lab-companion' | 'curriculum-designer' | 'assessment-agent' | 'integrity-agent';
   name: string;
@@ -75,10 +82,41 @@ const mockAgentConfigs: AgentConfig[] = [
 ];
 
 export async function fetchAgentConfigs(): Promise<AgentConfig[]> {
-  return mockAgentConfigs.map(config => ({ ...config }));
+  const configs = mockAgentConfigs.map(config => ({ ...config }));
+  if (!assessmentConfigured) return configs;
+
+  const assessment = await getAssessmentAgentConfig();
+  return configs.map(config => config.id === 'assessment-agent'
+    ? { ...config, ...fromAssessmentPayload(assessment) }
+    : config);
 }
 
 export async function saveAgentConfigs(configs: AgentConfig[]): Promise<void> {
-  // Intentional placeholder until agent configuration persistence is available.
-  console.info('Agent configuration changes (not yet persisted):', configs);
+  const assessment = configs.find(config => config.id === 'assessment-agent');
+  if (assessmentConfigured && assessment) await saveAssessmentAgentConfig(toAssessmentPayload(assessment));
+
+  // Intentional placeholder until the remaining agents have configuration APIs.
+  console.info('Non-persisted agent configuration changes:', configs.filter(config => config.id !== 'assessment-agent'));
+}
+
+function fromAssessmentPayload(config: AssessmentAgentConfigPayload): Pick<AgentConfig, 'tone' | 'strictness' | 'supportStyle' | 'feedbackFocus' | 'guardrail' | 'instructions'> {
+  return {
+    tone: config.tone,
+    strictness: config.strictness,
+    supportStyle: config.support_style,
+    feedbackFocus: config.feedback_focus,
+    guardrail: config.guardrail,
+    instructions: config.instructions,
+  };
+}
+
+function toAssessmentPayload(config: AgentConfig): AssessmentAgentConfigPayload {
+  return {
+    tone: config.tone,
+    strictness: config.strictness,
+    support_style: config.supportStyle,
+    feedback_focus: config.feedbackFocus,
+    guardrail: config.guardrail,
+    instructions: config.instructions,
+  };
 }

@@ -19,12 +19,15 @@ export default function AgentConfigModal({ onClose }: Props) {
   const [activeId, setActiveId] = useState<AgentConfig['id'] | null>(null);
   const [view, setView] = useState<View>('overview');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchAgentConfigs().then(items => {
-      setConfigs(items);
-      setActiveId(items[0]?.id ?? null);
-    });
+    void fetchAgentConfigs()
+      .then(items => {
+        setConfigs(items);
+        setActiveId(items[0]?.id ?? null);
+      })
+      .catch(err => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   const activeConfig = configs.find(config => config.id === activeId);
@@ -41,8 +44,14 @@ export default function AgentConfigModal({ onClose }: Props) {
 
   async function save() {
     setSaving(true);
-    await saveAgentConfigs(configs);
-    onClose();
+    setError(null);
+    try {
+      await saveAgentConfigs(configs);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSaving(false);
+    }
   }
 
   function selectField<T extends string>(label: string, value: T, options: readonly T[], onChange: (next: T) => void, help: string) {
@@ -60,6 +69,7 @@ export default function AgentConfigModal({ onClose }: Props) {
   return (
     <Modal title="Customize tutor behavior" onClose={saving ? () => {} : onClose} width={820}>
       <p className="modal-subtitle">Choose an agent to see what it does, then customize its behavior using guided teaching options.</p>
+      {error && <div className="notice notice-error">{error}</div>}
 
       <div className="agent-config-layout">
         <div className="agent-config-list" role="tablist" aria-label="AI agents">

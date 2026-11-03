@@ -10,6 +10,15 @@ export const assessmentConfigured = BASE !== '';
 
 const TIMEOUT_MS = 20_000;
 
+export interface AssessmentAgentConfigPayload {
+  tone: 'Encouraging' | 'Neutral' | 'Direct' | 'Analytical';
+  strictness: 'Flexible' | 'Balanced' | 'High';
+  support_style: 'Socratic questions' | 'Progressive hints' | 'Concise feedback' | 'Detailed explanations';
+  feedback_focus: 'Build understanding' | 'Build confidence' | 'Improve accuracy' | 'Encourage reflection';
+  guardrail: 'Never give a full answer' | 'Ask for an attempt first' | 'Escalate uncertainty to the instructor' | 'Only use approved course materials';
+  instructions: string;
+}
+
 // ── Types (the subset of AssessmentResult the UI reads) ─────────────────────
 
 export interface TestCaseResult {
@@ -77,4 +86,34 @@ export async function getResults(): Promise<AssessmentResult[]> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function agentConfigRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+    if (!res.ok) throw new Error(`The assessment agent returned an error (${res.status}).`);
+    return await res.json() as T;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('The assessment agent took too long to respond.', { cause: e });
+    }
+    if (e instanceof Error && e.message.startsWith('The assessment agent')) throw e;
+    throw new Error('Could not reach the assessment agent. Is it running?', { cause: e });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function getAssessmentAgentConfig(): Promise<AssessmentAgentConfigPayload> {
+  return agentConfigRequest(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`);
+}
+
+export function saveAssessmentAgentConfig(config: AssessmentAgentConfigPayload): Promise<AssessmentAgentConfigPayload> {
+  return agentConfigRequest(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
 }
