@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
-import { ASSIGNMENT_ID, assessmentConfigured, getResults } from '../api/assessment';
+import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult } from '../api/assessment';
+import type { AssessmentResult } from '../api/assessment';
 import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
 import type { SortKey, SubmissionRow, SubmissionStatus } from './submissionRows';
 
 function statusBadge(status: SubmissionStatus) {
   if (status === 'Graded') return <span className="badge badge-graded">Graded</span>;
-  if (status === 'Flagged ⚠') return <span className="badge badge-flagged">Flagged ⚠</span>;
-  return <span className="badge badge-review">Needs Review</span>;
+  if (status === 'Reviewed') return <span className="badge badge-reviewed">Reviewed</span>;
+  return <span className="badge badge-flagged">Needs Review</span>;
 }
 
 function List({ title, items }: { title: string; items: string[] }) {
@@ -22,10 +23,83 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+interface RegradeFormProps {
+  submissionId: string;
+  apiKey: string;
+  onApiKeyChange: (key: string) => void;
+  onRegraded: (result: AssessmentResult) => void;
+}
+
+function RegradeForm({ submissionId, apiKey, onApiKeyChange, onRegraded }: RegradeFormProps) {
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) {
+    return <button className="btn-outline" onClick={() => setOpen(true)}>Regrade</button>;
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      onRegraded(await regradeResult(submissionId, notes.trim(), apiKey));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="regrade-form">
+      <div className="preview-label">Regrade</div>
+      <p className="regrade-help">
+        Grades this submission again with the assignment's current rubric, solution and materials.
+        The new grade replaces this one in the table; the current grade is kept as history.
+      </p>
+      <label>
+        Notes for the grader (optional)
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="e.g. A recursive solution is acceptable; don't penalize it."
+          rows={3}
+          disabled={busy}
+        />
+      </label>
+      <label>
+        API key for this assignment's model
+        <input
+          type="password"
+          autoComplete="off"
+          value={apiKey}
+          onChange={e => onApiKeyChange(e.target.value)}
+          placeholder="sk-…"
+          disabled={busy}
+        />
+        <small>
+          Sent with each regrade only and kept on this page until you leave it; never saved. Without a key the
+          agent returns a mock grade marked as not real.
+        </small>
+      </label>
+      {error && <div className="notice notice-error">{error}</div>}
+      <div className="regrade-actions">
+        <button className="btn-outline" onClick={() => { setOpen(false); setError(null); }} disabled={busy}>Cancel</button>
+        <button className="btn-primary" onClick={() => void submit()} disabled={busy}>
+          {busy ? 'Regrading…' : 'Regrade'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent: (name: string) => void }) {
   const [sortKey, setSortKey] = useState<SortKey>('lastName');
   const [descending, setDescending] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // The teacher's API key for regrading. Kept in memory only, for as long as this tab is open.
+  const [apiKey, setApiKey] = useState('');
 
   // null until the agent has answered; only used when the agent is configured.
   const [liveRows, setLiveRows] = useState<SubmissionRow[] | null>(null);
@@ -41,17 +115,22 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
   }, []);
 
   const loading = assessmentConfigured && liveRows === null && loadError === null;
-  // Sample rows are a demo for when no agent is configured. They are never shown in place of
-  // real results that failed to load: they contain invented integrity flags about named students.
   const data = !assessmentConfigured ? SAMPLE_ROWS : (liveRows ?? []);
   const rows = [...data].sort((a, b) => (descending ? -1 : 1) * compareRows(a, b, sortKey));
 
   const graded = data.filter(r => r.status === 'Graded').length;
   const review = data.filter(r => r.status === 'Needs Review').length;
-  const flagged = data.filter(r => r.status === 'Flagged ⚠').length;
+  const reviewed = data.filter(r => r.status === 'Reviewed').length;
 
   function toggle(id: string) {
     setExpanded(current => (current === id ? null : id));
+  }
+
+  // A regrade is a new result: it takes the old row's place and stays open.
+  function replaceRow(oldId: string, result: AssessmentResult) {
+    const row = rowFromResult(result);
+    setLiveRows(current => (current ?? []).map(r => (r.id === oldId ? row : r)));
+    setExpanded(row.id);
   }
 
   return (
@@ -62,7 +141,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
           <p>
             {loadError
               ? 'Results unavailable'
-              : `${data.length} submissions · ${graded} graded · ${review} needs review · ${flagged} flagged`}
+              : `${data.length} submissions · ${graded} graded · ${review} needs review · ${reviewed} reviewed`}
           </p>
         </div>
         <div className="content-actions">
@@ -127,8 +206,14 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                     }}
                   >
                     <td style={{ fontWeight: 500 }}>{row.name}</td>
-                    <td style={{ fontWeight: 600 }}>{row.score}</td>
-                    <td>{statusBadge(row.status)}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {row.score ?? '—'}
+                      <span className="score-max"> / {row.maxScore}</span>
+                    </td>
+                    <td>
+                      {statusBadge(row.status)}
+                      {row.mock && <span className="badge badge-mock" title="Graded without an API key">Mock grade</span>}
+                    </td>
                     <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{row.feedback}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="download-link" onClick={e => e.stopPropagation()}>Download</button>
@@ -138,12 +223,30 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                     <tr className="submission-preview-row">
                       <td colSpan={5}>
                         <div className="submission-preview">
-                          <div>
-                            <div className="preview-label">Submission</div>
-                            <p>{row.submissionText ?? 'The assessment agent does not store submission text yet.'}</p>
-                          </div>
+                          {row.submissionText !== null ? (
+                            <div>
+                              <div className="preview-label">Submission</div>
+                              <p>{row.submissionText}</p>
+                            </div>
+                          ) : (
+                            row.files.length > 0 && (
+                              <div>
+                                <div className="preview-label">Submitted files</div>
+                                <p>{row.files.join(', ')}</p>
+                              </div>
+                            )
+                          )}
+                          {row.regradeOf && (
+                            <div>
+                              <div className="preview-label">Regraded</div>
+                              <p>
+                                Regrade of submission {row.regradeOf}
+                                {row.regradeInstructions ? `, with notes: “${row.regradeInstructions}”` : ', without notes.'}
+                              </p>
+                            </div>
+                          )}
+                          <List title="Review reasons" items={row.reasons} />
                           <List title="Grading" items={row.grading} />
-                          <List title="Integrity flags" items={row.flags} />
                           {row.feedback && (
                             <div>
                               <div className="preview-label">AI feedback</div>
@@ -152,6 +255,14 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                           )}
                           <List title="Strengths" items={row.strengths} />
                           <List title="Improvements" items={row.improvements} />
+                          {row.submissionId && (
+                            <RegradeForm
+                              submissionId={row.submissionId}
+                              apiKey={apiKey}
+                              onApiKeyChange={setApiKey}
+                              onRegraded={result => replaceRow(row.id, result)}
+                            />
+                          )}
                           {row.hasDetails && (
                             <button className="btn-outline" onClick={() => onSelectStudent(row.name)}>Full student details</button>
                           )}

@@ -9,65 +9,59 @@ export const ASSIGNMENT_ID = import.meta.env.VITE_ASSIGNMENT_ID ?? 'hw1_sorting'
 export const assessmentConfigured = BASE !== '';
 
 const TIMEOUT_MS = 20_000;
+// Grading is one model call per submission and can take up to a minute with a real model.
+const GRADING_TIMEOUT_MS = 120_000;
 
 // ── Types (the subset of AssessmentResult the UI reads) ─────────────────────
 
-export interface TestCaseResult {
-  name: string;
-  passed: boolean;
-  points_earned: number;
-  points_possible: number;
-}
+export type ResultStatus = 'ai_graded' | 'needs_review' | 'instructor_graded';
 
-export interface ReportCriterion {
+export interface CriterionScore {
+  id: string;
   name: string;
   score: number;
-  max_score: number;
-}
-
-export interface AnomalyFlag {
-  flag_type: string;
-  confidence: number;
+  max_points: number;
+  justification: string;
   evidence: string;
-  severity: string;
 }
 
 export interface AssessmentResult {
   submission_id: string;
   student_id: string;
   assignment_id: string;
-  automated_score: number;
+  files: string[];
+  regrade_of: string | null;
+  regrade_instructions: string;
+  model: string;
+  /** Graded by the offline mock model because no API key was sent: not a real grade. */
+  mock: boolean;
+  criteria: CriterionScore[];
+  /** Sum of the criterion scores; null when grading failed. */
+  score: number | null;
+  max_score: number;
+  feedback: { summary: string; strengths: string[]; improvements: string[]; next_steps: string[] } | null;
+  status: ResultStatus;
+  review_reasons: string[];
+  /** Set by an instructor; replaces score. */
   final_score: number | null;
   created_at: string;
-  code_grade: { test_results: TestCaseResult[] } | null;
-  report_evaluation: { criteria: ReportCriterion[] } | null;
-  anomaly_report: { flags: AnomalyFlag[]; overall_risk: string; recommendation: string } | null;
-  feedback: { summary: string; strengths: string[]; improvements: string[] } | null;
-  manual_review: { priority: string; status: string } | null;
 }
 
-// ── Endpoints ───────────────────────────────────────────────────────────────
+// ── Requests ────────────────────────────────────────────────────────────────
 
-/**
- * All graded results for the configured assignment, newest per student only.
- * The agent appends a new record on every (re)submission, so older ones are dropped here.
- */
-export async function getResults(): Promise<AssessmentResult[]> {
+async function request<T>(path: string, init: RequestInit = {}, timeoutMs = TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${BASE}/results?assignment_id=${encodeURIComponent(ASSIGNMENT_ID)}`, {
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`The assessment agent returned an error (${res.status}).`);
-    const all = (await res.json()) as AssessmentResult[];
-
-    const latest = new Map<string, AssessmentResult>();
-    for (const result of all) {
-      const existing = latest.get(result.student_id);
-      if (!existing || result.created_at > existing.created_at) latest.set(result.student_id, result);
+    const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+    if (!res.ok) {
+      // FastAPI puts the reason in "detail"; show it when there is one.
+      const detail = await res.json().then(body => body?.detail, () => undefined);
+      throw new Error(typeof detail === 'string'
+        ? `The assessment agent returned an error (${res.status}): ${detail}`
+        : `The assessment agent returned an error (${res.status}).`);
     }
-    return [...latest.values()];
+    return (await res.json()) as T;
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       throw new Error('The assessment agent took too long to respond.', { cause: e });
@@ -77,4 +71,28 @@ export async function getResults(): Promise<AssessmentResult[]> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ── Endpoints ───────────────────────────────────────────────────────────────
+
+/** Each student's current grade for the configured assignment: the newest result, including regrades. */
+export function getResults(): Promise<AssessmentResult[]> {
+  return request(`/results?assignment_id=${encodeURIComponent(ASSIGNMENT_ID)}&latest=true`);
+}
+
+/**
+ * Grade a submission again with the assignment's current rubric. The agent saves a new result
+ * (with regrade_of set) and returns it; the original is left unchanged.
+ *
+ * apiKey is the teacher's key for the assignment's model vendor. It is sent with this request only.
+ * Without one the agent grades with its offline mock model and marks the result as a mock grade.
+ */
+export function regradeResult(submissionId: string, instructions: string, apiKey: string): Promise<AssessmentResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey.trim()) headers['X-LLM-API-Key'] = apiKey.trim();
+  return request(
+    `/results/${encodeURIComponent(submissionId)}/regrade`,
+    { method: 'POST', headers, body: JSON.stringify({ instructions }) },
+    GRADING_TIMEOUT_MS,
+  );
 }
