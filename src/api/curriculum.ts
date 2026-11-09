@@ -4,6 +4,8 @@
 // port 8003 locally. Types mirror models/curriculum.py and models/files.py in
 // the curriculum-designer repo.
 
+import { curriculumLlmHeaders } from './llmKey';
+
 const BASE: string = import.meta.env.VITE_CURRICULUM_URL ?? '';
 export const LAB_ID: string = import.meta.env.VITE_LAB_ID ?? 'lab4';
 export const COURSE_ID: string = import.meta.env.VITE_COURSE_ID ?? 'csc580';
@@ -129,7 +131,11 @@ async function toAgentError(res: Response): Promise<AgentError> {
   return new AgentError(message, code, res.status);
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * `usesModel` marks calls that make the agent call an LLM; only those carry the instructor's
+ * API key and model, so the key is not sent with plain reads and uploads.
+ */
+async function request<T>(path: string, init?: RequestInit, usesModel = false): Promise<T> {
   if (!BASE) {
     throw new AgentError(
       'VITE_CURRICULUM_URL is not set — the UI does not know where the Curriculum Designer is running.',
@@ -144,7 +150,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+    const headers = usesModel ? { ...(init?.headers as Record<string, string> | undefined), ...curriculumLlmHeaders() } : init?.headers;
+    res = await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new AgentError('The Curriculum Designer took too long to respond.', 'TIMEOUT', 0, err);
@@ -187,6 +194,7 @@ export function generateLab(
       instructor_id: INSTRUCTOR_ID,
       ...params,
     }),
+    true,
   );
 }
 
@@ -205,6 +213,7 @@ export function requestChanges(
   return request<LabMaterial>(
     `/curriculum/${labId}/request-changes`,
     json({ feedback, requested_by: INSTRUCTOR_ID }),
+    true,
   );
 }
 
@@ -265,7 +274,7 @@ export interface TypoIssue {
 
 /** Proofreads the spec, quiz and rubric. Does not change the lab. */
 export function checkTypos(labId: string = LAB_ID): Promise<{ issues_found: number; issues: TypoIssue[] }> {
-  return request(`/curriculum/${labId}/check-typos`, { method: 'POST' });
+  return request(`/curriculum/${labId}/check-typos`, { method: 'POST' }, true);
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────

@@ -4,6 +4,8 @@
 // Set VITE_ASSESSMENT_URL in .env.local (e.g. http://localhost:8000). When it is unset the UI
 // does not call the agent and shows sample data instead.
 
+import { assessmentLlmHeaders } from './llmKey';
+
 const BASE = import.meta.env.VITE_ASSESSMENT_URL ?? '';
 export const ASSIGNMENT_ID = import.meta.env.VITE_ASSIGNMENT_ID ?? 'hw1_sorting';
 export const assessmentConfigured = BASE !== '';
@@ -92,12 +94,12 @@ export function getResults(): Promise<AssessmentResult[]> {
  * Grade a submission again with the assignment's current rubric. The agent saves a new result
  * (with regrade_of set) and returns it; the original is left unchanged.
  *
- * apiKey is the teacher's key for the assignment's model vendor. It is sent with this request only.
- * Without one the agent grades with its offline mock model and marks the result as a mock grade.
+ * The instructor's API key (see llmKey.ts) is sent with this request only, and has to be for the
+ * assignment's model vendor. Without one the agent grades with its offline mock model and marks
+ * the result as a mock grade.
  */
-export function regradeResult(submissionId: string, instructions: string, apiKey: string): Promise<AssessmentResult> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey.trim()) headers['X-LLM-API-Key'] = apiKey.trim();
+export function regradeResult(submissionId: string, instructions: string): Promise<AssessmentResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...assessmentLlmHeaders() };
   return request(
     `/results/${encodeURIComponent(submissionId)}/regrade`,
     { method: 'POST', headers, body: JSON.stringify({ instructions }) },

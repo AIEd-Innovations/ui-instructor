@@ -42,6 +42,10 @@ Vite only exposes variables that start with `VITE_`, and they end up in the brow
 | `VITE_LAB_ID` | `lab4` | which lab the dashboard shows |
 | `VITE_COURSE_ID`, `VITE_INSTRUCTOR_ID` | `csc580`, `instructor_1` | sent to the agent when generating and approving |
 
+## Instructor API key
+
+The instructor uses their own model account: **Add API key** (top right) takes a model and a key. The key is held in memory only, never in `localStorage`, `sessionStorage`, cookies or the URL, so reloading the tab forgets it. It is sent as `X-LLM-API-Key` (plus `X-LLM-Model` for the Curriculum Designer) only on requests that call a model: generate, request changes, check typos and regrade. The Assessment Agent grades with the model set on the assignment, so the key has to be for that vendor. Code: `src/api/llmKey.ts`.
+
 ## How it is put together
 
 - `src/api/curriculum.ts`: the typed client. Errors from the agent become `AgentError` with a readable message and a `code`

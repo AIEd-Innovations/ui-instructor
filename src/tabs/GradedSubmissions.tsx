@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
 import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult } from '../api/assessment';
 import type { AssessmentResult } from '../api/assessment';
+import { useLlmSettings } from '../state/useLlmSettings';
 import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
 import type { SortKey, SubmissionRow, SubmissionStatus } from './submissionRows';
 
@@ -25,12 +26,11 @@ function List({ title, items }: { title: string; items: string[] }) {
 
 interface RegradeFormProps {
   submissionId: string;
-  apiKey: string;
-  onApiKeyChange: (key: string) => void;
   onRegraded: (result: AssessmentResult) => void;
 }
 
-function RegradeForm({ submissionId, apiKey, onApiKeyChange, onRegraded }: RegradeFormProps) {
+function RegradeForm({ submissionId, onRegraded }: RegradeFormProps) {
+  const { apiKey } = useLlmSettings();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,7 +44,7 @@ function RegradeForm({ submissionId, apiKey, onApiKeyChange, onRegraded }: Regra
     setBusy(true);
     setError(null);
     try {
-      onRegraded(await regradeResult(submissionId, notes.trim(), apiKey));
+      onRegraded(await regradeResult(submissionId, notes.trim()));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -68,21 +68,11 @@ function RegradeForm({ submissionId, apiKey, onApiKeyChange, onRegraded }: Regra
           disabled={busy}
         />
       </label>
-      <label>
-        API key for this assignment's model
-        <input
-          type="password"
-          autoComplete="off"
-          value={apiKey}
-          onChange={e => onApiKeyChange(e.target.value)}
-          placeholder="sk-…"
-          disabled={busy}
-        />
-        <small>
-          Sent with each regrade only and kept on this page until you leave it; never saved. Without a key the
-          agent returns a mock grade marked as not real.
-        </small>
-      </label>
+      <div className="regrade-help">
+        {apiKey
+          ? 'Regrading with your API key. It has to be for the assignment’s model vendor.'
+          : 'No API key set, so the agent returns a mock grade marked as not real. Use “Add API key” at the top of the page.'}
+      </div>
       {error && <div className="notice notice-error">{error}</div>}
       <div className="regrade-actions">
         <button className="btn-outline" onClick={() => { setOpen(false); setError(null); }} disabled={busy}>Cancel</button>
@@ -98,8 +88,6 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
   const [sortKey, setSortKey] = useState<SortKey>('lastName');
   const [descending, setDescending] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  // The teacher's API key for regrading. Kept in memory only, for as long as this tab is open.
-  const [apiKey, setApiKey] = useState('');
 
   // null until the agent has answered; only used when the agent is configured.
   const [liveRows, setLiveRows] = useState<SubmissionRow[] | null>(null);
@@ -258,8 +246,6 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                           {row.submissionId && (
                             <RegradeForm
                               submissionId={row.submissionId}
-                              apiKey={apiKey}
-                              onApiKeyChange={setApiKey}
                               onRegraded={result => replaceRow(row.id, result)}
                             />
                           )}
