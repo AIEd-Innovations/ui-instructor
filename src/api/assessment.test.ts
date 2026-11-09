@@ -1,20 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getResults } from './assessment';
+import { getResults, regradeResult } from './assessment';
 import type { AssessmentResult } from './assessment';
 
-function record(studentId: string, createdAt: string, score: number): AssessmentResult {
+function record(studentId: string, score: number): AssessmentResult {
   return {
-    submission_id: `${studentId}-${createdAt}`,
+    submission_id: `${studentId}-1`,
     student_id: studentId,
     assignment_id: 'hw1_sorting',
-    automated_score: score,
-    final_score: null,
-    created_at: createdAt,
-    code_grade: null,
-    report_evaluation: null,
-    anomaly_report: null,
+    files: ['sort.py'],
+    regrade_of: null,
+    regrade_instructions: '',
+    model: 'claude-sonnet-5-5',
+    mock: false,
+    criteria: [],
+    score,
+    max_score: 100,
     feedback: null,
-    manual_review: null,
+    status: 'ai_graded',
+    review_reasons: [],
+    final_score: null,
+    created_at: '2026-10-05T10:00:00',
   };
 }
 
@@ -22,24 +27,22 @@ function stubFetch(impl: () => Promise<Response>) {
   vi.stubGlobal('fetch', vi.fn(impl));
 }
 
+function lastCall(): [string, RequestInit] {
+  return vi.mocked(fetch).mock.calls.at(-1) as [string, RequestInit];
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('getResults', () => {
-  it('keeps only the newest result per student', async () => {
-    stubFetch(async () => Response.json([
-      record('alex_morgan', '2026-10-05T09:00:00', 50),
-      record('bella_kim', '2026-10-05T09:30:00', 39),
-      record('alex_morgan', '2026-10-05T11:00:00', 90),
-      record('alex_morgan', '2026-10-05T10:00:00', 70),
-    ]));
+  it("asks the agent for each student's current grade", async () => {
+    stubFetch(async () => Response.json([record('alex_morgan', 90), record('bella_kim', 39)]));
 
     const results = await getResults();
 
-    expect(results).toHaveLength(2);
-    expect(results.find(r => r.student_id === 'alex_morgan')?.automated_score).toBe(90);
-    expect(results.find(r => r.student_id === 'bella_kim')?.automated_score).toBe(39);
+    expect(lastCall()[0]).toContain('/results?assignment_id=hw1_sorting&latest=true');
+    expect(results.map(r => r.score)).toEqual([90, 39]);
   });
 
   it('returns an empty list when nothing has been graded', async () => {
@@ -55,5 +58,37 @@ describe('getResults', () => {
   it('says so when the agent cannot be reached', async () => {
     stubFetch(async () => { throw new TypeError('Failed to fetch'); });
     await expect(getResults()).rejects.toThrow('Could not reach the assessment agent. Is it running?');
+  });
+});
+
+describe('regradeResult', () => {
+  it('posts the notes and sends the API key as a header', async () => {
+    const regraded = { ...record('alex_morgan', 95), submission_id: 'new1', regrade_of: 'alex_morgan-1' };
+    stubFetch(async () => Response.json(regraded));
+
+    const result = await regradeResult('alex_morgan-1', 'Recursion is fine.', ' sk-test ');
+
+    const [url, init] = lastCall();
+    expect(url).toContain('/results/alex_morgan-1/regrade');
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe(JSON.stringify({ instructions: 'Recursion is fine.' }));
+    expect((init.headers as Record<string, string>)['X-LLM-API-Key']).toBe('sk-test');
+    expect(result).toEqual(regraded);
+  });
+
+  it('sends no key header when no key was entered', async () => {
+    stubFetch(async () => Response.json(record('alex_morgan', 80)));
+    await regradeResult('alex_morgan-1', '', '  ');
+    expect(lastCall()[1].headers).not.toHaveProperty('X-LLM-API-Key');
+  });
+
+  it("shows the agent's reason when it refuses", async () => {
+    stubFetch(async () => Response.json(
+      { detail: 'The submitted files were not stored for this result; resubmit to grade it again' },
+      { status: 409 },
+    ));
+    await expect(regradeResult('old', '', '')).rejects.toThrow(
+      'The assessment agent returned an error (409): The submitted files were not stored',
+    );
   });
 });

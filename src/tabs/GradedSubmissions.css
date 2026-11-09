@@ -86,3 +86,82 @@
   text-align: center;
   color: var(--color-text-muted);
 }
+
+.score-max {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.badge-reviewed {
+  background: var(--bg-blue-light);
+  color: var(--color-primary);
+}
+
+.badge-mock {
+  background: #fdf0f0;
+  color: #a02020;
+  margin-left: 6px;
+}
+
+/* Regrade form in the expanded row */
+
+.regrade-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.regrade-help {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.regrade-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.regrade-form textarea,
+.regrade-form input {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-dark);
+  background: var(--bg-page);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  padding: 8px 9px;
+  resize: vertical;
+}
+
+.regrade-form textarea:focus,
+.regrade-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.regrade-form small {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.regrade-form .notice {
+  margin-bottom: 0;
+}
+
+.regrade-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
