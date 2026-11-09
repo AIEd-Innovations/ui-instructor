@@ -14,6 +14,14 @@ const TIMEOUT_MS = 20_000;
 // Grading is one model call per submission and can take up to a minute with a real model.
 const GRADING_TIMEOUT_MS = 120_000;
 
+/** The instructor's grading preferences for an assignment (assessment_agent/agent_config.py). */
+export interface AssessmentAgentConfigPayload {
+  tone: 'Encouraging' | 'Neutral' | 'Direct';
+  feedback_detail: 'Brief' | 'Standard' | 'Detailed';
+  partial_credit: 'Generous' | 'Balanced' | 'Strict';
+  notes: string;
+}
+
 // ── Types (the subset of AssessmentResult the UI reads) ─────────────────────
 
 export type ResultStatus = 'ai_graded' | 'needs_review' | 'instructor_graded';
@@ -97,4 +105,16 @@ export function regradeResult(submissionId: string, instructions: string): Promi
     { method: 'POST', headers, body: JSON.stringify({ instructions }) },
     GRADING_TIMEOUT_MS,
   );
+}
+
+export function getAssessmentAgentConfig(): Promise<AssessmentAgentConfigPayload> {
+  return request(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`);
+}
+
+export function saveAssessmentAgentConfig(config: AssessmentAgentConfigPayload): Promise<AssessmentAgentConfigPayload> {
+  return request(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
 }
