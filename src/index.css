@@ -1614,3 +1614,59 @@ h1, h2, p {
 
 /* Typo check (Lab Tasks and Lab Quiz) */
 .typo-check { margin-bottom: 16px; }
+
+/* Header button for the instructor's own API key */
+
+.api-key-btn {
+  margin-left: auto;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.api-key-btn:hover { background: var(--bg-question); }
+
+.api-key-btn--set {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.llm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.llm-field label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.llm-field select,
+.llm-field input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text-dark);
+  background: var(--bg-page);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  padding: 8px 9px;
+}
+
+.llm-field select:focus,
+.llm-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.llm-field small {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}

@@ -9,10 +9,12 @@ import Statistics from './tabs/Statistics';
 // import AgentCollaboration from './tabs/AgentCollaboration';
 import UploadMaterialModal from './components/UploadMaterialModal';
 import UploadAgentModal from './components/UploadAgentModal';
+import ApiKeyModal from './components/ApiKeyModal';
 import StudentDetailModal from './components/StudentDetailModal';
 import LoginPage from './components/LoginPage';
 import { LabProvider } from './state/LabContext';
 import { useLab } from './state/labStore';
+import { useLlmSettings } from './state/useLlmSettings';
 import { COURSE_ID, formatSize, formatWhen, isConfigured } from './api/curriculum';
 
 type Tab = 'tasks' | 'quiz' | 'activity' | 'grades' | 'stats' | 'agents';
@@ -71,6 +73,8 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showUploadAgent, setShowUploadAgent] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const { apiKey } = useLlmSettings();
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -102,6 +106,13 @@ function Dashboard() {
                 : `${COURSE_ID.toUpperCase()} — no lab generated yet`}
             </p>
           </div>
+          <button
+            className={`api-key-btn${apiKey ? ' api-key-btn--set' : ''}`}
+            onClick={() => setShowApiKey(true)}
+            title={apiKey ? 'Your API key is set for this tab' : 'Add your API key to run requests on your own account'}
+          >
+            {apiKey ? '● API key set' : 'Add API key'}
+          </button>
           {/* Placeholder, not hooked up to anything
           <div className="status-pill">● Lab in session</div> */}
         </header>
@@ -147,6 +158,7 @@ function Dashboard() {
       </div>
 
       {showUploadMaterial && <UploadMaterialModal onClose={() => setShowUploadMaterial(false)} />}
+      {showApiKey && <ApiKeyModal onClose={() => setShowApiKey(false)} />}
       {showUploadAgent && <UploadAgentModal onClose={() => setShowUploadAgent(false)} />}
       {selectedStudent && (
         <StudentDetailModal

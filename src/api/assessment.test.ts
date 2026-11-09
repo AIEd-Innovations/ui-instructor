@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getResults, regradeResult } from './assessment';
 import type { AssessmentResult } from './assessment';
+import { clearLlmKey, setLlmSettings } from './llmKey';
 
 function record(studentId: string, score: number): AssessmentResult {
   return {
@@ -33,6 +34,7 @@ function lastCall(): [string, RequestInit] {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  clearLlmKey();
 });
 
 describe('getResults', () => {
@@ -66,7 +68,8 @@ describe('regradeResult', () => {
     const regraded = { ...record('alex_morgan', 95), submission_id: 'new1', regrade_of: 'alex_morgan-1' };
     stubFetch(async () => Response.json(regraded));
 
-    const result = await regradeResult('alex_morgan-1', 'Recursion is fine.', ' sk-test ');
+    setLlmSettings({ apiKey: ' sk-test ' });
+    const result = await regradeResult('alex_morgan-1', 'Recursion is fine.');
 
     const [url, init] = lastCall();
     expect(url).toContain('/results/alex_morgan-1/regrade');
@@ -78,7 +81,7 @@ describe('regradeResult', () => {
 
   it('sends no key header when no key was entered', async () => {
     stubFetch(async () => Response.json(record('alex_morgan', 80)));
-    await regradeResult('alex_morgan-1', '', '  ');
+    await regradeResult('alex_morgan-1', '');
     expect(lastCall()[1].headers).not.toHaveProperty('X-LLM-API-Key');
   });
 
@@ -87,7 +90,7 @@ describe('regradeResult', () => {
       { detail: 'The submitted files were not stored for this result; resubmit to grade it again' },
       { status: 409 },
     ));
-    await expect(regradeResult('old', '', '')).rejects.toThrow(
+    await expect(regradeResult('old', '')).rejects.toThrow(
       'The assessment agent returned an error (409): The submitted files were not stored',
     );
   });
