@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getResults, regradeResult } from './assessment';
+import { getAssessmentAgentConfig, getResults, regradeResult, saveAssessmentAgentConfig } from './assessment';
 import type { AssessmentResult } from './assessment';
 import { clearLlmKey, setLlmSettings } from './llmKey';
 
@@ -93,5 +93,28 @@ describe('regradeResult', () => {
     await expect(regradeResult('old', '')).rejects.toThrow(
       'The assessment agent returned an error (409): The submitted files were not stored',
     );
+  });
+});
+
+describe('assessment agent configuration', () => {
+  const agentConfig = {
+    tone: 'Encouraging' as const,
+    feedback_detail: 'Detailed' as const,
+    partial_credit: 'Strict' as const,
+    notes: '',
+  };
+
+  it('loads the assignment configuration', async () => {
+    stubFetch(async () => Response.json(agentConfig));
+    await expect(getAssessmentAgentConfig()).resolves.toEqual(agentConfig);
+  });
+
+  it('saves the assignment configuration as JSON', async () => {
+    stubFetch(async () => Response.json(agentConfig));
+    await saveAssessmentAgentConfig(agentConfig);
+    const [url, init] = lastCall();
+    expect(url).toContain('/assignments/hw1_sorting/agent-config');
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(JSON.stringify(agentConfig));
   });
 });

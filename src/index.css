@@ -1367,6 +1367,67 @@ h1, h2, p {
 
 .modal-textarea::placeholder { color: var(--color-text-muted); }
 
+/* Agent behavior configuration */
+.agent-config-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  min-height: 350px;
+  overflow: hidden;
+}
+
+.agent-config-list {
+  padding: 8px;
+  background: var(--bg-light);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-config-tab {
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 10px;
+  text-align: left;
+}
+
+.agent-config-tab:hover { color: var(--color-text-dark); }
+.agent-config-tab--active { background: var(--bg-white); box-shadow: 0 1px 3px rgba(26, 26, 51, .1); color: var(--color-primary); }
+.agent-config-tag { background: var(--bg-light); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-muted); font-size: 10px; margin-left: 6px; padding: 0 4px; }
+.agent-config-changed { color: var(--color-primary); font-weight: 700; margin-left: 6px; }
+
+.agent-config-content { padding: 18px; }
+.agent-config-description { background: var(--bg-blue-light); border-radius: 8px; color: var(--color-text-dark); font-size: 12px; line-height: 1.5; margin-bottom: 16px; padding: 11px 12px; }
+.agent-config-description p { margin: 3px 0; }
+.agent-config-description span, .agent-config-field small { color: var(--color-text-muted); display: block; font-size: 11px; }
+.agent-config-field { color: var(--color-text-dark); display: block; font-size: 12px; font-weight: 500; }
+.agent-config-field > span, .agent-config-field > label { display: block; margin-bottom: 6px; }
+.agent-config-field--wide { grid-column: 1 / -1; }
+.agent-config-field textarea, .agent-config-field select { background: var(--bg-page); border: 1px solid var(--color-border); border-radius: 7px; box-sizing: border-box; color: var(--color-text-dark); font: inherit; font-size: 12px; outline: none; padding: 9px; resize: vertical; width: 100%; }
+.agent-config-field textarea:focus, .agent-config-field select:focus { border-color: var(--color-primary); }
+.agent-config-field small { font-weight: 400; line-height: 1.4; margin-top: 5px; }
+.agent-config-field .notice { margin: 8px 0 0; }
+.agent-config-file { background: none; border: none; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 11px; font-weight: 600; margin-top: 6px; padding: 0; text-decoration: underline; }
+.agent-config-file:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+.agent-config-fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 18px; }
+.agent-config-save-errors { margin: 12px 0 0; }
+.agent-config-save-errors ul { margin: 4px 0 0; padding-left: 18px; }
+
+@media (max-width: 620px) {
+  .agent-config-layout { grid-template-columns: 1fr; }
+  .agent-config-list { border-bottom: 1px solid var(--color-border); border-right: none; flex-direction: row; overflow-x: auto; }
+  .agent-config-tab { flex: 0 0 auto; }
+  .agent-config-fields-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
 /* Modal footer */
 .modal-footer {
   display: flex;
