@@ -15,6 +15,9 @@ import LoginPage from './components/LoginPage';
 import { LabProvider } from './state/LabContext';
 import { useLab } from './state/labStore';
 import { useLlmSettings } from './state/useLlmSettings';
+import { clearLlmKey, hasLlmKey } from './api/llmKey';
+import { signOut } from './auth/auth';
+import type { SignedInUser } from './auth/auth';
 import { COURSE_ID, formatSize, formatWhen, isConfigured } from './api/curriculum';
 
 type Tab = 'tasks' | 'quiz' | 'activity' | 'grades' | 'stats' | 'agents';
@@ -68,12 +71,13 @@ function MaterialFiles() {
   );
 }
 
-function Dashboard() {
+function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => void }) {
   const { lab } = useLab();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showAgentConfig, setShowAgentConfig] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
+  // Ask for the key right after sign-in, since every model request needs it.
+  const [showApiKey, setShowApiKey] = useState(() => !hasLlmKey());
   const { apiKey } = useLlmSettings();
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -113,6 +117,8 @@ function Dashboard() {
           >
             {apiKey ? '● API key set' : 'Add API key'}
           </button>
+          <span className="user-chip" title={user.email}>{user.name}</span>
+          <button className="api-key-btn user-signout" onClick={onSignOut}>Sign out</button>
           {/* Placeholder, not hooked up to anything
           <div className="status-pill">● Lab in session</div> */}
         </header>
@@ -172,15 +178,22 @@ function Dashboard() {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<SignedInUser | null>(null);
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  if (!user) {
+    return <LoginPage onLogin={setUser} />;
+  }
+
+  function handleSignOut() {
+    // The key belongs to whoever signed in, so it goes too.
+    clearLlmKey();
+    void signOut();
+    setUser(null);
   }
 
   return (
     <LabProvider>
-      <Dashboard />
+      <Dashboard user={user} onSignOut={handleSignOut} />
     </LabProvider>
   );
 }

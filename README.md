@@ -42,6 +42,14 @@ Vite only exposes variables that start with `VITE_`, and they end up in the brow
 | `VITE_LAB_ID` | `lab4` | which lab the dashboard shows |
 | `VITE_COURSE_ID`, `VITE_INSTRUCTOR_ID` | `csc580`, `instructor_1` | sent to the agent when generating and approving |
 
+## Signing in
+
+With `VITE_MS_CLIENT_ID` set, the login page is **Sign in with Microsoft**, restricted to `@calpoly.edu` accounts (popup flow, MSAL, nothing stored in the browser). Without it, a development form accepts anything and says so. After signing in, the API key dialog opens; **Sign out** also clears the key.
+
+To enable it, register an app in Microsoft Entra ID: platform **Single-page application**, redirect URI = the origin the UI is served from (add `http://localhost:5173` for development), supported accounts limited to the Cal Poly tenant, then set `VITE_MS_CLIENT_ID` and `VITE_MS_TENANT_ID` (also in the Vercel project). Cal Poly IT may need to approve it.
+
+The `@calpoly.edu` check in the page is a convenience, not security: anyone can edit client-side code. Real enforcement is the tenant restriction above plus each service verifying the ID token, which they do not do yet.
+
 ## Instructor API key
 
 The instructor uses their own model account: **Add API key** (top right) takes a model and a key. The key is held in memory only, never in `localStorage`, `sessionStorage`, cookies or the URL, so reloading the tab forgets it. It is sent as `X-LLM-API-Key` (plus `X-LLM-Model` for the Curriculum Designer) only on requests that call a model: generate, request changes, check typos and regrade. The Assessment Agent grades with the model set on the assignment, so the key has to be for that vendor. Code: `src/api/llmKey.ts`.
