@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAssessmentAgentConfig, getResults, importLabAsAssignment, regradeResult, reviewResult, saveAssessmentAgentConfig } from './assessment';
+import { getAssessmentAgentConfig, getResults, importLabAsAssignment, regradeResult, reviewResult, saveAssessmentAgentConfig, submitForGrading } from './assessment';
 import type { AssessmentResult } from './assessment';
 import { clearLlmKey, setLlmSettings } from './llmKey';
 
@@ -147,5 +147,29 @@ describe('importLabAsAssignment', () => {
     expect(url).toContain('/assignments/import/lab4');
     expect(init.method).toBe('POST');
     expect(ack.imported).toEqual(['lab4', 'lab4-quiz']);
+  });
+});
+
+describe('submitForGrading', () => {
+  it('uploads the files as a form with the key header and no JSON content type', async () => {
+    stubFetch(async () => Response.json(record('alex_morgan', 90)));
+    setLlmSettings({ apiKey: 'sk-test' });
+
+    const files = [new File(['print(1)'], 'a.py'), new File(['notes'], 'report.md')];
+    await submitForGrading('alex_morgan', files);
+
+    const [url, init] = lastCall();
+    expect(url).toContain('/submit');
+    expect(init.method).toBe('POST');
+    const form = init.body as FormData;
+    expect(form.get('student_id')).toBe('alex_morgan');
+    expect(form.get('assignment_id')).toBe('hw1_sorting');
+    expect(form.getAll('files')).toHaveLength(2);
+    expect(init.headers).toEqual({ 'X-LLM-API-Key': 'sk-test' });
+  });
+
+  it('shows why the agent refused a file', async () => {
+    stubFetch(async () => Response.json({ detail: 'a.pdf is not a UTF-8 text file' }, { status: 400 }));
+    await expect(submitForGrading('s', [new File(['x'], 'a.pdf')])).rejects.toThrow('a.pdf is not a UTF-8 text file');
   });
 });
