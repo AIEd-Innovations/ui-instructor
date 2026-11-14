@@ -2,7 +2,7 @@
 // exporting <LabProvider> exports nothing else (react-refresh rule).
 
 import { createContext, useContext } from 'react';
-import type { GenerateParams, LabFileSummary, LabMaterial } from '../api/curriculum';
+import type { GenerateParams, LabFileSummary, LabMaterial, Step } from '../api/curriculum';
 
 export interface LabState {
   lab: LabMaterial | null;
@@ -16,9 +16,11 @@ export interface LabState {
   busy: boolean;
 
   refresh: () => Promise<void>;
+  /** Writes the spec only; the quiz and rubric follow, one approval at a time. */
   generate: (params: GenerateParams) => Promise<void>;
-  approve: (notes?: string) => Promise<void>;
-  requestChanges: (feedback: string) => Promise<void>;
+  /** Generate or regenerate one step; `feedback` is the instructor's change request. */
+  generateStep: (step: Step, feedback?: string) => Promise<void>;
+  approveStep: (step: Step, notes?: string) => Promise<void>;
   uploadMaterial: (files: File[]) => Promise<string>;
   uploadInstructions: (text: string) => Promise<string>;
   deleteFile: (fileId: string) => Promise<void>;
