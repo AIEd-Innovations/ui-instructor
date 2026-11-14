@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
-import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult, reviewResult } from '../api/assessment';
+import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult, reviewResult, submitForGrading } from '../api/assessment';
 import type { AssessmentResult } from '../api/assessment';
 import { useLlmSettings } from '../state/useLlmSettings';
 import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
@@ -78,6 +78,78 @@ function RegradeForm({ submissionId, onRegraded }: RegradeFormProps) {
         <button className="btn-outline" onClick={() => { setOpen(false); setError(null); }} disabled={busy}>Cancel</button>
         <button className="btn-primary" onClick={() => void submit()} disabled={busy}>
           {busy ? 'Regrading…' : 'Regrade'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface GradeFormProps {
+  onGraded: (result: AssessmentResult) => void;
+  onClose: () => void;
+}
+
+/** Grade a student's files now, with the instructor's API key. */
+function GradeForm({ onGraded, onClose }: GradeFormProps) {
+  const { apiKey } = useLlmSettings();
+  const [studentId, setStudentId] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const id = studentId.trim();
+  const canSubmit = id !== '' && files.length > 0 && !busy;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onGraded(await submitForGrading(id, files));
+      setStudentId('');
+      setFiles([]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="regrade-form" style={{ marginBottom: 16 }}>
+      <div className="preview-label">Grade a submission — {ASSIGNMENT_ID}</div>
+      <p className="regrade-help">
+        Grades one student's files against this assignment's rubric. Plain text only (code, reports, notes);
+        PDFs and Word files are not accepted. Grading takes a few seconds to a minute.
+      </p>
+      <label>
+        Student ID
+        <input
+          value={studentId}
+          onChange={e => setStudentId(e.target.value)}
+          placeholder="e.g. alex_morgan"
+          disabled={busy}
+        />
+      </label>
+      <label>
+        Files
+        <input
+          type="file"
+          multiple
+          onChange={e => setFiles(Array.from(e.target.files ?? []))}
+          disabled={busy}
+        />
+      </label>
+      <div className="regrade-help">
+        {apiKey
+          ? 'Grading with your API key. It has to be for the assignment’s model vendor.'
+          : 'No API key set, so the agent returns a mock grade marked as not real. Use “Add API key” at the top of the page.'}
+      </div>
+      {error && <div className="notice notice-error">{error}</div>}
+      <div className="regrade-actions">
+        <button className="btn-outline" onClick={onClose} disabled={busy}>Close</button>
+        <button className="btn-primary" onClick={() => void submit()} disabled={!canSubmit}>
+          {busy ? 'Grading…' : 'Grade'}
         </button>
       </div>
     </div>
@@ -162,6 +234,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
   const [sortKey, setSortKey] = useState<SortKey>('lastName');
   const [descending, setDescending] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showGrade, setShowGrade] = useState(false);
 
   // null until the agent has answered; only used when the agent is configured.
   const [liveRows, setLiveRows] = useState<SubmissionRow[] | null>(null);
@@ -195,6 +268,13 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
     setExpanded(row.id);
   }
 
+  // A new grade replaces that student's earlier row: the table shows each student's current grade.
+  function addGraded(result: AssessmentResult) {
+    const row = rowFromResult(result);
+    setLiveRows(current => [row, ...(current ?? []).filter(r => r.name !== row.name)]);
+    setExpanded(row.id);
+  }
+
   return (
     <div className="content-card">
       <div className="content-header">
@@ -208,10 +288,21 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
         </div>
         <div className="content-actions">
           <button className="btn-outline">Download All (CSV)</button>
-          <button className="btn-primary">Grade Submissions</button>
+          <button
+            className="btn-primary"
+            onClick={() => setShowGrade(s => !s)}
+            disabled={!assessmentConfigured}
+            title={assessmentConfigured ? undefined : 'The assessment agent is not configured'}
+          >
+            Grade Submissions
+          </button>
         </div>
       </div>
       <hr className="content-divider" />
+
+      {showGrade && assessmentConfigured && (
+        <GradeForm onGraded={addGraded} onClose={() => setShowGrade(false)} />
+      )}
 
       <div className={`submissions-source${loadError ? ' submissions-source--error' : ''}`} role={loadError ? 'alert' : undefined}>
         <strong>AI assessment:</strong>{' '}
