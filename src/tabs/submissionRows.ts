@@ -16,6 +16,9 @@ export interface SubmissionRow {
   /** Graded by the offline mock model because no API key was sent: not a real grade. */
   mock: boolean;
   feedback: string;
+  /** The grader's own score, kept after an instructor replaces it. */
+  aiScore: number | null;
+  instructorNotes: string;
   /** Sample rows only; the agent does not return submitted text. */
   submissionText: string | null;
   files: string[];
@@ -72,6 +75,8 @@ export function rowFromResult(r: AssessmentResult): SubmissionRow {
     status: STATUS_LABEL[r.status] ?? 'Needs Review',
     mock: r.mock,
     feedback: r.feedback?.summary ?? '',
+    aiScore: r.score === null ? null : Math.round(r.score * 10) / 10,
+    instructorNotes: r.instructor_notes ?? '',
     submissionText: null,
     files: r.files ?? [],
     grading: (r.criteria ?? []).map(
@@ -108,6 +113,8 @@ function sample(
     status,
     mock: false,
     feedback,
+    aiScore: score,
+    instructorNotes: '',
     submissionText,
     files: [],
     grading,

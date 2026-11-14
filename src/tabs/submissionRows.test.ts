@@ -122,3 +122,26 @@ describe('compareRows', () => {
     expect(statuses.lastIndexOf('Graded')).toBeLessThan(statuses.indexOf('Reviewed'));
   });
 });
+
+describe('instructor review', () => {
+  const result = {
+    submission_id: 's1', student_id: 'alex_morgan', assignment_id: 'hw1', files: [], regrade_of: null,
+    regrade_instructions: '', model: 'm', mock: false, criteria: [], score: 70, max_score: 100,
+    feedback: null, status: 'instructor_graded', review_reasons: [], final_score: 85,
+    instructor_notes: 'Report was strong.', created_at: '2026-11-14T00:00:00Z',
+  } as const;
+
+  it('shows the instructor grade and keeps the AI score', () => {
+    const row = rowFromResult({ ...result } as never);
+    expect(row.status).toBe('Reviewed');
+    expect(row.score).toBe(85);
+    expect(row.aiScore).toBe(70);
+    expect(row.instructorNotes).toBe('Report was strong.');
+  });
+
+  it('copes with results saved before instructor notes existed', () => {
+    const { instructor_notes: _unused, ...older } = result;
+    void _unused;
+    expect(rowFromResult(older as never).instructorNotes).toBe('');
+  });
+});
