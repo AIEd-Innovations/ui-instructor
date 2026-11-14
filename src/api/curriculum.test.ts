@@ -51,3 +51,43 @@ describe('Curriculum Designer requests', () => {
     expect(lastHeaders()).not.toHaveProperty('X-LLM-API-Key');
   });
 });
+
+describe('step-by-step generation', () => {
+  function lastCall(): { url: string; body: Record<string, unknown> } {
+    const [url, init] = vi.mocked(fetch).mock.calls.at(-1) as [string, RequestInit];
+    return { url, body: JSON.parse(String(init.body)) };
+  }
+
+  it('starts with the spec only', async () => {
+    const { generateSpec } = await import('./curriculum');
+    await generateSpec({ title: 'T', learning_objectives: ['a'], difficulty: 'basic', estimated_duration_min: 60, material_weight: 'balanced' });
+    expect(lastCall().url).toBe('http://curriculum.test/curriculum/generate-spec');
+  });
+
+  it('generates one step, with the feedback only when there is some', async () => {
+    const { generateStep } = await import('./curriculum');
+    await generateStep('quiz');
+    expect(lastCall().url).toBe('http://curriculum.test/curriculum/lab4/steps/quiz/generate');
+    expect(lastCall().body).not.toHaveProperty('feedback');
+    await generateStep('spec', 'add recursion');
+    expect(lastCall().body).toMatchObject({ feedback: 'add recursion' });
+  });
+
+  it('sends the key when a step calls the model, but not when it only approves', async () => {
+    const { generateStep, approveStep } = await import('./curriculum');
+    const { setLlmSettings: set } = await import('./llmKey');
+    set({ apiKey: 'sk-test' });
+    await generateStep('rubric');
+    expect(lastHeaders()['X-LLM-API-Key']).toBe('sk-test');
+    await approveStep('rubric');
+    expect(lastHeaders()).not.toHaveProperty('X-LLM-API-Key');
+  });
+
+  it('reads the step status, falling back for labs saved before steps existed', async () => {
+    const { stepStatus } = await import('./curriculum');
+    type Lab = Parameters<typeof stepStatus>[0];
+    expect(stepStatus({ approval_status: 'approved' } as Lab, 'quiz')).toBe('approved');
+    expect(stepStatus({ approval_status: 'needs_changes' } as Lab, 'quiz')).toBe('pending');
+    expect(stepStatus({ approval_status: 'pending', quiz_status: 'needs_changes' } as Lab, 'quiz')).toBe('needs_changes');
+  });
+});
