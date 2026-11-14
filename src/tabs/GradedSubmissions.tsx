@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
-import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult } from '../api/assessment';
+import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult, reviewResult } from '../api/assessment';
 import type { AssessmentResult } from '../api/assessment';
 import { useLlmSettings } from '../state/useLlmSettings';
 import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
@@ -78,6 +78,80 @@ function RegradeForm({ submissionId, onRegraded }: RegradeFormProps) {
         <button className="btn-outline" onClick={() => { setOpen(false); setError(null); }} disabled={busy}>Cancel</button>
         <button className="btn-primary" onClick={() => void submit()} disabled={busy}>
           {busy ? 'Regrading…' : 'Regrade'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface ReviewFormProps {
+  submissionId: string;
+  maxScore: number;
+  initialScore: number | null;
+  initialNotes: string;
+  onReviewed: (result: AssessmentResult) => void;
+}
+
+/** The instructor's own grade. It replaces the AI score and marks the submission Reviewed. */
+function ReviewForm({ submissionId, maxScore, initialScore, initialNotes, onReviewed }: ReviewFormProps) {
+  const [open, setOpen] = useState(false);
+  const [score, setScore] = useState(initialScore === null ? '' : String(initialScore));
+  const [notes, setNotes] = useState(initialNotes);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) {
+    return <button className="btn-outline" onClick={() => setOpen(true)}>Set my grade</button>;
+  }
+
+  const value = Number(score);
+  const valid = score.trim() !== '' && Number.isFinite(value) && value >= 0 && value <= maxScore;
+
+  async function submit() {
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onReviewed(await reviewResult(submissionId, value, notes.trim()));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="regrade-form">
+      <div className="preview-label">Your grade</div>
+      <p className="regrade-help">
+        Replaces the AI score in the table and marks this submission as reviewed. The AI score is kept on the record.
+      </p>
+      <label>
+        Score (0 to {maxScore})
+        <input
+          type="number"
+          min={0}
+          max={maxScore}
+          step="any"
+          value={score}
+          onChange={e => setScore(e.target.value)}
+          disabled={busy}
+        />
+      </label>
+      <label>
+        Notes (optional)
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="e.g. Full marks for the report; the traversal bug is the only deduction."
+          rows={3}
+          disabled={busy}
+        />
+      </label>
+      {error && <div className="notice notice-error">{error}</div>}
+      <div className="regrade-actions">
+        <button className="btn-outline" onClick={() => { setOpen(false); setError(null); }} disabled={busy}>Cancel</button>
+        <button className="btn-primary" onClick={() => void submit()} disabled={busy || !valid}>
+          {busy ? 'Saving…' : 'Save grade'}
         </button>
       </div>
     </div>
@@ -243,6 +317,26 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                           )}
                           <List title="Strengths" items={row.strengths} />
                           <List title="Improvements" items={row.improvements} />
+                          {row.status === 'Reviewed' && (
+                            <div>
+                              <div className="preview-label">Your grade</div>
+                              <p>
+                                {row.score}/{row.maxScore}
+                                {row.aiScore !== null && row.aiScore !== row.score ? ` (the AI gave ${row.aiScore})` : ''}
+                                {row.instructorNotes ? ` — ${row.instructorNotes}` : ''}
+                              </p>
+                            </div>
+                          )}
+                          {row.submissionId && (
+                            <ReviewForm
+                              key={`${row.id}-${row.status}`}
+                              submissionId={row.submissionId}
+                              maxScore={row.maxScore}
+                              initialScore={row.score}
+                              initialNotes={row.instructorNotes}
+                              onReviewed={result => replaceRow(row.id, result)}
+                            />
+                          )}
                           {row.submissionId && (
                             <RegradeForm
                               submissionId={row.submissionId}
