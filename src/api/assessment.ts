@@ -147,3 +147,17 @@ export interface ImportAck {
 export function importLabAsAssignment(labId: string): Promise<ImportAck> {
   return request(`/assignments/import/${encodeURIComponent(labId)}`, { method: 'POST' });
 }
+
+/**
+ * Grade one student's files against the configured assignment. Text files only (code, reports,
+ * notes): the agent rejects anything that is not UTF-8. Uses the instructor's API key, which has to
+ * be for the assignment's model vendor; without one the agent returns a mock grade marked as not real.
+ */
+export function submitForGrading(studentId: string, files: File[]): Promise<AssessmentResult> {
+  const form = new FormData();
+  form.append('student_id', studentId);
+  form.append('assignment_id', ASSIGNMENT_ID);
+  for (const file of files) form.append('files', file);
+  // No Content-Type: the browser sets the multipart boundary.
+  return request('/submit', { method: 'POST', headers: assessmentLlmHeaders(), body: form }, GRADING_TIMEOUT_MS);
+}
