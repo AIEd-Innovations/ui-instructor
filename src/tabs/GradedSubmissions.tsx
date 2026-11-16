@@ -3,6 +3,7 @@ import './GradedSubmissions.css';
 import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult } from '../api/assessment';
 import type { AssessmentResult } from '../api/assessment';
 import { useLlmSettings } from '../state/useLlmSettings';
+import { downloadText, gradesCsv, safeFileName, studentReport } from './exportRows';
 import { SAMPLE_ROWS, compareRows, rowFromResult } from './submissionRows';
 import type { SortKey, SubmissionRow, SubmissionStatus } from './submissionRows';
 
@@ -133,7 +134,13 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
           </p>
         </div>
         <div className="content-actions">
-          <button className="btn-outline">Download All (CSV)</button>
+          <button
+            className="btn-outline"
+            disabled={rows.length === 0}
+            onClick={() => downloadText(`${safeFileName(ASSIGNMENT_ID)}-grades.csv`, gradesCsv(rows), 'text/csv')}
+          >
+            Download All (CSV)
+          </button>
           <button className="btn-primary">Grade Submissions</button>
         </div>
       </div>
@@ -204,7 +211,20 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                     </td>
                     <td style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{row.feedback}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <button className="download-link" onClick={e => e.stopPropagation()}>Download</button>
+                      <button
+                        className="download-link"
+                        title="Download this student's grade report"
+                        onClick={e => {
+                          e.stopPropagation();
+                          downloadText(
+                            `${safeFileName(row.name)}-${safeFileName(ASSIGNMENT_ID)}.md`,
+                            studentReport(row, ASSIGNMENT_ID),
+                            'text/markdown',
+                          );
+                        }}
+                      >
+                        Download
+                      </button>
                     </td>
                   </tr>
                   {isOpen && (
