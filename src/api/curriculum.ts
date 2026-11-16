@@ -20,6 +20,8 @@ const REQUEST_TIMEOUT_MS = 150_000;
 export type QuestionType = 'short_answer' | 'multiple_choice' | 'code' | 'essay';
 export type DifficultyTier = 'basic' | 'intermediate' | 'challenge';
 export type ApprovalStatus = 'pending' | 'approved' | 'needs_changes';
+/** The three steps of a lab, in order. Each is approved before the next is generated. */
+export type Step = 'spec' | 'quiz' | 'rubric';
 
 export interface QuizQuestion {
   id: string;
@@ -49,6 +51,8 @@ export interface FeedbackEntry {
   requested_by: string;
   requested_at: string;
   resulting_version: number;
+  /** Which step the feedback was about; 'all' (or missing, on older labs) for the whole lab. */
+  step?: Step | 'all';
 }
 
 export interface LabMaterial {
@@ -67,6 +71,10 @@ export interface LabMaterial {
   approval_status: ApprovalStatus;
   approved_by: string | null;
   approval_notes: string | null;
+  /** Absent on labs saved before step-by-step approval. */
+  spec_status?: ApprovalStatus;
+  quiz_status?: ApprovalStatus;
+  rubric_status?: ApprovalStatus;
   feedback_history: FeedbackEntry[];
   version: number;
   generated_at: string;
@@ -196,6 +204,54 @@ export function generateLab(
     }),
     true,
   );
+}
+
+/** Start a lab step by step: the agent writes only the spec, then waits for approval. */
+export function generateSpec(
+  params: GenerateParams,
+  labId: string = LAB_ID,
+): Promise<LabMaterial> {
+  return request<LabMaterial>(
+    '/curriculum/generate-spec',
+    json({
+      lab_id: labId,
+      course_id: COURSE_ID,
+      instructor_id: INSTRUCTOR_ID,
+      ...params,
+    }),
+    true,
+  );
+}
+
+/**
+ * Generate or regenerate one step. With `feedback` the agent addresses it. The quiz needs an
+ * approved spec and the rubric an approved quiz; changing a step sends the later steps back to pending.
+ */
+export function generateStep(
+  step: Step,
+  feedback?: string,
+  labId: string = LAB_ID,
+): Promise<LabMaterial> {
+  return request<LabMaterial>(
+    `/curriculum/${labId}/steps/${step}/generate`,
+    json({ requested_by: INSTRUCTOR_ID, ...(feedback ? { feedback } : {}) }),
+    true,
+  );
+}
+
+export function approveStep(step: Step, notes = '', labId: string = LAB_ID): Promise<LabMaterial> {
+  return request<LabMaterial>(
+    `/curriculum/${labId}/steps/${step}/approve`,
+    json({ approved_by: INSTRUCTOR_ID, notes }),
+  );
+}
+
+/**
+ * A step's approval status. Labs saved before step-by-step approval have no per-step fields:
+ * for those, an approved lab has all three steps approved and anything else is pending.
+ */
+export function stepStatus(lab: LabMaterial, step: Step): ApprovalStatus {
+  return lab[`${step}_status`] ?? (lab.approval_status === 'approved' ? 'approved' : 'pending');
 }
 
 export function approveLab(notes = '', labId: string = LAB_ID): Promise<LabMaterial> {

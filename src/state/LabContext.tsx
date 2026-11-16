@@ -95,9 +95,9 @@ export function LabProvider({ children }: { children: ReactNode }) {
       notGenerated,
       busy,
       refresh,
-      generate: params => run(() => api.generateLab(params)),
-      approve: (notes = '') => run(() => api.approveLab(notes)),
-      requestChanges: feedback => run(() => api.requestChanges(feedback)),
+      generate: params => run(() => api.generateSpec(params)),
+      generateStep: (step, feedback) => run(() => api.generateStep(step, feedback)),
+      approveStep: (step, notes = '') => run(() => api.approveStep(step, notes)),
 
       uploadMaterial: async uploads => {
         setBusy(true);

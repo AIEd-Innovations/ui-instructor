@@ -59,14 +59,15 @@ export default function GenerateLabModal({
   return (
     <Modal title="Generate Lab Material" onClose={working ? () => {} : onClose} width={560}>
       <p className="modal-subtitle">
-        The agent writes the lab spec, quiz and rubric from these. Any material you
-        uploaded is used as context.
+        The agent writes the lab spec from these and waits for your approval. Then it writes
+        the quiz, and then the rubric, each after you approve the step before. Any material
+        you uploaded is used as context.
       </p>
 
       {replacesExisting && (
         <div className="notice notice-error">
-          This replaces the current lab: it goes back to version 1 and pending approval, and any quiz
-          refinements are lost.
+          This replaces the current lab: it goes back to version 1 with only a spec awaiting approval,
+          and the quiz, rubric and any refinements are lost.
         </div>
       )}
 

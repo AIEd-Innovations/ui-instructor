@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-import { exportUrl } from '../api/curriculum';
+import { exportUrl, stepStatus } from '../api/curriculum';
 import GenerateLabModal from '../components/GenerateLabModal';
 import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
 export default function MaterialPreview() {
-  const { lab, loading, error, notGenerated, busy, refresh, generate, approve, requestChanges } = useLab();
+  const { lab, loading, error, notGenerated, busy, refresh, generate, approveStep, generateStep } = useLab();
   const [showGenerate, setShowGenerate] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -41,10 +41,12 @@ export default function MaterialPreview() {
     );
   }
 
+  const specStatus = stepStatus(lab, 'spec');
+
   async function onApprove() {
     setActionError(null);
     try {
-      await approve();
+      await approveStep('spec');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     }
@@ -58,12 +60,12 @@ export default function MaterialPreview() {
             <h2>{lab.title}</h2>
             <p>
               {lab.learning_objectives.length} objectives · {lab.estimated_duration_min} min ·
-              version {lab.version} · <ApprovalPill status={lab.approval_status} />
+              version {lab.version} · Spec <ApprovalPill status={specStatus} />
             </p>
           </div>
           <div className="content-actions">
             <button className="btn-outline" onClick={() => setShowGenerate(true)} disabled={busy}>
-              Regenerate
+              Start over
             </button>
             <a className="btn-outline" href={exportUrl('lab')} target="_blank" rel="noreferrer">
               Export PDF
@@ -72,9 +74,9 @@ export default function MaterialPreview() {
             <button
               className="btn-approve"
               onClick={() => void onApprove()}
-              disabled={busy || lab.approval_status === 'approved'}
+              disabled={busy || specStatus === 'approved'}
             >
-              {lab.approval_status === 'approved' ? 'Approved' : 'Approve'}
+              {specStatus === 'approved' ? 'Spec approved' : 'Approve spec'}
             </button>
           </div>
         </div>
@@ -85,9 +87,13 @@ export default function MaterialPreview() {
 
         {actionError && <Notice kind="error">{actionError}</Notice>}
 
+        {specStatus === 'approved' && lab.approval_status !== 'approved' && (
+          <Notice kind="info">Spec approved. Next: generate the quiz in the Lab Quiz tab.</Notice>
+        )}
+
         {lab.approval_status === 'approved' && lab.approved_by && (
           <Notice kind="info">
-            Approved by {lab.approved_by}
+            Lab approved by {lab.approved_by}
             {lab.approval_notes ? ` — ${lab.approval_notes}` : ''}
           </Notice>
         )}
@@ -112,10 +118,10 @@ export default function MaterialPreview() {
         )}
 
         <RefineBar
-          placeholder='e.g. "Make the quiz harder" or "Add a question about traversal"'
-          hint="Feedback regenerates the quiz and rubric. The spec above is preserved — use Regenerate to rewrite it."
+          placeholder='e.g. "Add a section on recursion" or "Make the setup shorter"'
+          hint="Feedback rewrites the spec. Once you change it, the quiz and rubric have to be approved again."
           disabled={busy}
-          onSend={requestChanges}
+          onSend={feedback => generateStep('spec', feedback)}
         />
       </div>
       {generateModal}
