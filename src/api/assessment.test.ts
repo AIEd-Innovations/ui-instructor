@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAssessmentAgentConfig, getResults, regradeResult, saveAssessmentAgentConfig } from './assessment';
+import { getAssessmentAgentConfig, getResults, importLabAsAssignment, regradeResult, reviewResult, saveAssessmentAgentConfig } from './assessment';
 import type { AssessmentResult } from './assessment';
 import { clearLlmKey, setLlmSettings } from './llmKey';
 
@@ -116,5 +116,36 @@ describe('assessment agent configuration', () => {
     expect(url).toContain('/assignments/hw1_sorting/agent-config');
     expect(init.method).toBe('PUT');
     expect(init.body).toBe(JSON.stringify(agentConfig));
+  });
+});
+
+describe('reviewResult', () => {
+  it('posts the instructor grade and sends no API key', async () => {
+    stubFetch(async () => Response.json({ ...record('alex_morgan', 70), final_score: 88, status: 'instructor_graded' }));
+    setLlmSettings({ apiKey: 'sk-test' });
+
+    const result = await reviewResult('sub 1', 88, 'good');
+
+    const [url, init] = lastCall();
+    expect(url).toContain('/results/sub%201/review');
+    expect(JSON.parse(String(init.body))).toEqual({ final_score: 88, notes: 'good' });
+    expect(JSON.stringify(init.headers)).not.toContain('sk-test');
+    expect(result.status).toBe('instructor_graded');
+  });
+
+  it('shows the agent\'s reason when the grade is refused', async () => {
+    stubFetch(async () => Response.json({ detail: 'final_score cannot exceed 100' }, { status: 400 }));
+    await expect(reviewResult('s1', 120, '')).rejects.toThrow('final_score cannot exceed 100');
+  });
+});
+
+describe('importLabAsAssignment', () => {
+  it('imports a lab by id', async () => {
+    stubFetch(async () => Response.json({ imported: ['lab4', 'lab4-quiz'], material: true }));
+    const ack = await importLabAsAssignment('lab4');
+    const [url, init] = lastCall();
+    expect(url).toContain('/assignments/import/lab4');
+    expect(init.method).toBe('POST');
+    expect(ack.imported).toEqual(['lab4', 'lab4-quiz']);
   });
 });

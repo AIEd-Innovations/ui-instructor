@@ -54,6 +54,7 @@ export interface AssessmentResult {
   review_reasons: string[];
   /** Set by an instructor; replaces score. */
   final_score: number | null;
+  instructor_notes?: string;
   created_at: string;
 }
 
@@ -117,4 +118,32 @@ export function saveAssessmentAgentConfig(config: AssessmentAgentConfigPayload):
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
   });
+}
+
+/**
+ * Record the instructor's own grade for a submission. It replaces the AI score (the AI score stays
+ * on the record) and marks the result as reviewed. No model call, so no API key is sent.
+ */
+export function reviewResult(submissionId: string, finalScore: number, notes: string): Promise<AssessmentResult> {
+  return request(`/results/${encodeURIComponent(submissionId)}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ final_score: finalScore, notes }),
+  });
+}
+
+export interface ImportAck {
+  /** The assignment ids created: the assignment, and its quiz as `<id>-quiz`. */
+  imported: string[];
+  /** True when the lab's uploaded material came across too. */
+  material: boolean;
+}
+
+/**
+ * Copy an approved Curriculum Designer lab into the Assessment Agent as an assignment, so it can
+ * grade against that lab's rubric. Importing again replaces the rubric and keeps uploaded solutions.
+ * The agent fetches the lab itself, so the lab has to be approved there first.
+ */
+export function importLabAsAssignment(labId: string): Promise<ImportAck> {
+  return request(`/assignments/import/${encodeURIComponent(labId)}`, { method: 'POST' });
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { exportUrl, stepStatus } from '../api/curriculum';
+import { assessmentConfigured, importLabAsAssignment } from '../api/assessment';
+import { LAB_ID, exportUrl, stepStatus } from '../api/curriculum';
 import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
@@ -15,6 +16,8 @@ export default function LabQuizPreview() {
   const { lab, loading, error, notGenerated, busy, refresh, approveStep, generateStep } = useLab();
   const [showAnswers, setShowAnswers] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState<string | null>(null);
 
   if (loading) return <LoadingState what="quiz" />;
   if (error) return <ErrorState message={error} onRetry={() => void refresh()} />;
@@ -42,6 +45,23 @@ export default function LabQuizPreview() {
       await action();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function sendToAssessment() {
+    setImporting(true);
+    setActionError(null);
+    setImported(null);
+    try {
+      const ack = await importLabAsAssignment(LAB_ID);
+      setImported(
+        `Sent to the Assessment Agent as ${ack.imported.join(' and ')}` +
+          `${ack.material ? ', with the uploaded material' : ''}. To see its grades, set VITE_ASSIGNMENT_ID to ${ack.imported[0]}.`,
+      );
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -87,6 +107,16 @@ export default function LabQuizPreview() {
       <TypoCheck />
 
       {actionError && <Notice kind="error">{actionError}</Notice>}
+      {imported && <Notice kind="info">{imported}</Notice>}
+
+      {lab.approval_status === 'approved' && assessmentConfigured && (
+        <Notice kind="info">
+          The lab is fully approved. Send it to the Assessment Agent so it can grade submissions against this rubric.{' '}
+          <button className="btn-outline" disabled={importing} onClick={() => void sendToAssessment()}>
+            {importing ? 'Sending…' : 'Send to Assessment Agent'}
+          </button>
+        </Notice>
+      )}
 
       {!hasQuiz && (
         <div className="empty-state">
@@ -155,6 +185,9 @@ export default function LabQuizPreview() {
                   </li>
                 ))}
               </ul>
+              <a className="btn-outline" href={exportUrl('rubric')} target="_blank" rel="noreferrer">
+                Export rubric PDF
+              </a>{' '}
               <button
                 className="btn-approve"
                 onClick={() => void act(() => approveStep('rubric'))}
