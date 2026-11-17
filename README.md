@@ -44,9 +44,9 @@ Vite only exposes variables that start with `VITE_`, and they end up in the brow
 
 ## Signing in
 
-With `VITE_MS_CLIENT_ID` set, the login page is **Sign in with Microsoft**, restricted to `@calpoly.edu` accounts (popup flow, MSAL, nothing stored in the browser). Without it, a development form accepts anything and says so. After signing in, the API key dialog opens; **Sign out** also clears the key.
+With `VITE_MS_CLIENT_ID` set, the login page is **Sign in with Microsoft**, restricted to `@calpoly.edu` accounts (MSAL). The redirect flow (default) keeps the sign-in in this tab's sessionStorage, so a reload stays signed in; `VITE_MS_LOGIN_FLOW=popup` uses a popup and keeps it in memory only. Without a client ID, a development form accepts anything and says so. After signing in, the API key dialog opens; **Sign out** also clears the key.
 
-To enable it, register an app in Microsoft Entra ID: platform **Single-page application**, redirect URI = the origin the UI is served from (add `http://localhost:5173` for development), supported accounts limited to the Cal Poly tenant, then set `VITE_MS_CLIENT_ID` and `VITE_MS_TENANT_ID` (also in the Vercel project). Cal Poly IT may need to approve it.
+To enable it, register an app in Microsoft Entra ID (platform **Single-page application**, redirect URI = the UI's origin + `/redirect.html`) and set `VITE_MS_CLIENT_ID` and `VITE_MS_TENANT_ID` (also in the Vercel project). Step-by-step setup, testing and what each error code means: [docs/MICROSOFT_SIGN_IN.md](docs/MICROSOFT_SIGN_IN.md).
 
 The `@calpoly.edu` check in the page is a convenience, not security: anyone can edit client-side code. Real enforcement is the tenant restriction above plus each service verifying the ID token, which they do not do yet.
 

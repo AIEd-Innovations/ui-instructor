@@ -4,6 +4,7 @@
 // port 8003 locally. Types mirror models/curriculum.py and models/files.py in
 // the curriculum-designer repo.
 
+import { authHeaders } from '../auth/auth';
 import { curriculumLlmHeaders } from './llmKey';
 
 const BASE: string = import.meta.env.VITE_CURRICULUM_URL ?? '';
@@ -159,7 +160,7 @@ async function request<T>(path: string, init?: RequestInit, usesModel = false): 
   let res: Response;
   try {
     const headers = usesModel ? { ...(init?.headers as Record<string, string> | undefined), ...curriculumLlmHeaders() } : init?.headers;
-    res = await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal });
+    res = await fetch(`${BASE}${path}`, { ...init, headers: await authHeaders(headers), signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new AgentError('The Curriculum Designer took too long to respond.', 'TIMEOUT', 0, err);

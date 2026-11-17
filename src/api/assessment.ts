@@ -4,6 +4,7 @@
 // Set VITE_ASSESSMENT_URL in .env.local (e.g. http://localhost:8000). When it is unset the UI
 // does not call the agent and shows sample data instead.
 
+import { authHeaders } from '../auth/auth';
 import { assessmentLlmHeaders } from './llmKey';
 
 const BASE = import.meta.env.VITE_ASSESSMENT_URL ?? '';
@@ -64,7 +65,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = TIME
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+    const res = await fetch(`${BASE}${path}`, { ...init, headers: await authHeaders(init.headers), signal: controller.signal });
     if (!res.ok) {
       // FastAPI puts the reason in "detail"; show it when there is one.
       const detail = await res.json().then(body => body?.detail, () => undefined);
