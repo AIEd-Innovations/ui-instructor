@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Signing in…</title>
+  </head>
+  <body>
+    <!-- Microsoft returns here after sign-in. MSAL's redirect bridge passes the result back to the app.
+         Nothing else may run on this page (see src/auth/redirect.ts). -->
+    <p>Signing in…</p>
+    <script type="module" src="/src/auth/redirect.ts"></script>
+  </body>
+</html>

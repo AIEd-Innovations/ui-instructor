@@ -1,15 +1,36 @@
-import { useState } from 'react';
-import { ALLOWED_EMAIL_DOMAIN, microsoftConfigured, signIn } from '../auth/auth';
+import { useEffect, useState } from 'react';
+import { ALLOWED_EMAIL_DOMAIN, SignInError, authSettings, microsoftConfigured, resumeSignIn, signIn } from '../auth/auth';
 import type { SignedInUser } from '../auth/auth';
 
 interface Props {
   onLogin: (user: SignedInUser) => void;
 }
 
+function toSignInError(e: unknown): SignInError {
+  return e instanceof SignInError ? e : new SignInError(e instanceof Error ? e.message : String(e));
+}
+
 /** Real sign-in: a Microsoft account, Cal Poly only. */
 function MicrosoftSignIn({ onLogin }: Props) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // True until we know whether this page load is a return from Microsoft or an existing sign-in.
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<SignInError | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    resumeSignIn()
+      .then(user => {
+        if (cancelled) return;
+        if (user) onLogin(user);
+        else setBusy(false);
+      })
+      .catch(e => {
+        if (cancelled) return;
+        setError(toSignInError(e));
+        setBusy(false);
+      });
+    return () => { cancelled = true; };
+  }, [onLogin]);
 
   async function start() {
     setBusy(true);
@@ -17,18 +38,36 @@ function MicrosoftSignIn({ onLogin }: Props) {
     try {
       onLogin(await signIn());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toSignInError(e));
       setBusy(false);
     }
   }
 
+  const settings = authSettings();
+
   return (
     <>
       <p className="login-help">Sign in with your @{ALLOWED_EMAIL_DOMAIN} Microsoft account.</p>
-      {error && <div className="notice notice-error">{error}</div>}
+      {error && (
+        <div className="notice notice-error">
+          {error.message}
+          {error.code && <> (<code>{error.code}</code>)</>}
+        </div>
+      )}
       <button className="btn-primary login-submit" onClick={() => void start()} disabled={busy}>
         {busy ? 'Waiting for Microsoft…' : 'Sign in with Microsoft'}
       </button>
+      <details className="login-diagnostics" open={error !== null}>
+        <summary>Sign-in details for troubleshooting</summary>
+        {error?.details && <pre>{error.details}</pre>}
+        <dl>
+          <dt>Client ID</dt><dd><code>{settings.clientId}</code></dd>
+          <dt>Tenant</dt><dd><code>{settings.tenant}</code></dd>
+          <dt>Flow</dt><dd><code>{settings.flow}</code></dd>
+          <dt>Redirect URI to register</dt><dd><code>{settings.redirectUri}</code></dd>
+          <dt>Allowed domain</dt><dd><code>@{settings.allowedDomain}</code></dd>
+        </dl>
+      </details>
     </>
   );
 }

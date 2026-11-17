@@ -1750,3 +1750,21 @@ h1, h2, p {
   color: var(--color-text-muted);
   margin-bottom: 14px;
 }
+
+.login-diagnostics {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.login-diagnostics summary { cursor: pointer; }
+.login-diagnostics pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-light);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 8px 0;
+}
+.login-diagnostics dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 8px 0 0; }
+.login-diagnostics dt { font-weight: 600; }
+.login-diagnostics dd { margin: 0; word-break: break-all; }
