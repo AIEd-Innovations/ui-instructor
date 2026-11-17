@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import './GradedSubmissions.css';
-import { ASSIGNMENT_ID, assessmentConfigured, getResults, regradeResult, reviewResult, submitForGrading } from '../api/assessment';
+import { assignmentId, assessmentConfigured, getResults, regradeResult, reviewResult, submitForGrading } from '../api/assessment';
 import type { AssessmentResult } from '../api/assessment';
 import { useLlmSettings } from '../state/useLlmSettings';
 import { downloadText, gradesCsv, safeFileName, studentReport } from './exportRows';
@@ -118,7 +118,7 @@ function GradeForm({ onGraded, onClose }: GradeFormProps) {
 
   return (
     <div className="regrade-form" style={{ marginBottom: 16 }}>
-      <div className="preview-label">Grade a submission — {ASSIGNMENT_ID}</div>
+      <div className="preview-label">Grade a submission — {assignmentId()}</div>
       <p className="regrade-help">
         Grades one student's files against this assignment's rubric. Plain text only (code, reports, notes);
         PDFs and Word files are not accepted. Grading takes a few seconds to a minute.
@@ -291,7 +291,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
           <button
             className="btn-outline"
             disabled={rows.length === 0}
-            onClick={() => downloadText(`${safeFileName(ASSIGNMENT_ID)}-grades.csv`, gradesCsv(rows), 'text/csv')}
+            onClick={() => downloadText(`${safeFileName(assignmentId())}-grades.csv`, gradesCsv(rows), 'text/csv')}
           >
             Download All (CSV)
           </button>
@@ -316,7 +316,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
         {loading && 'loading results…'}
         {!loading && !assessmentConfigured && 'demo mode: the assessment agent is not configured, so these are sample students.'}
         {!loading && assessmentConfigured && loadError && `${loadError} No results can be shown until it is reachable.`}
-        {!loading && assessmentConfigured && !loadError && `connected · ${ASSIGNMENT_ID}`}
+        {!loading && assessmentConfigured && !loadError && `connected · ${assignmentId()}`}
       </div>
 
       <div className="submissions-toolbar">
@@ -348,7 +348,7 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
           </thead>
           <tbody>
             {!loading && !loadError && rows.length === 0 && (
-              <tr><td colSpan={5} className="submissions-empty">No graded submissions yet for {ASSIGNMENT_ID}.</td></tr>
+              <tr><td colSpan={5} className="submissions-empty">No graded submissions yet for {assignmentId()}.</td></tr>
             )}
             {rows.map(row => {
               const isOpen = expanded === row.id;
@@ -382,8 +382,8 @@ export default function GradedSubmissions({ onSelectStudent }: { onSelectStudent
                         onClick={e => {
                           e.stopPropagation();
                           downloadText(
-                            `${safeFileName(row.name)}-${safeFileName(ASSIGNMENT_ID)}.md`,
-                            studentReport(row, ASSIGNMENT_ID),
+                            `${safeFileName(row.name)}-${safeFileName(assignmentId())}.md`,
+                            studentReport(row, assignmentId()),
                             'text/markdown',
                           );
                         }}

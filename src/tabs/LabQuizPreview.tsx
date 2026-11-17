@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
 import { assessmentConfigured, importLabAsAssignment } from '../api/assessment';
-import { LAB_ID, exportUrl, stepStatus } from '../api/curriculum';
-import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
+import { stepStatus } from '../api/curriculum';
+import { labId } from '../api/session';
+import { ApprovalPill, ErrorState, ExportPdfButton, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -53,10 +54,10 @@ export default function LabQuizPreview() {
     setActionError(null);
     setImported(null);
     try {
-      const ack = await importLabAsAssignment(LAB_ID);
+      const ack = await importLabAsAssignment(labId());
       setImported(
         `Sent to the Assessment Agent as ${ack.imported.join(' and ')}` +
-          `${ack.material ? ', with the uploaded material' : ''}. To see its grades, set VITE_ASSIGNMENT_ID to ${ack.imported[0]}.`,
+          `${ack.material ? ', with the uploaded material' : ''}. Its grades show up in Student Submissions.`,
       );
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
@@ -88,9 +89,7 @@ export default function LabQuizPreview() {
           <button className="btn-outline" onClick={() => setShowAnswers(a => !a)}>
             {showAnswers ? 'Hide answers' : 'Show answers'}
           </button>
-          <a className="btn-outline" href={exportUrl('quiz')} target="_blank" rel="noreferrer">
-            Export PDF
-          </a>
+          <ExportPdfButton kind="quiz" />
           <div className="content-actions-divider" />
           <button
             className="btn-approve"
@@ -185,9 +184,7 @@ export default function LabQuizPreview() {
                   </li>
                 ))}
               </ul>
-              <a className="btn-outline" href={exportUrl('rubric')} target="_blank" rel="noreferrer">
-                Export rubric PDF
-              </a>{' '}
+              <ExportPdfButton kind="rubric" label="Export rubric PDF" />{' '}
               <button
                 className="btn-approve"
                 onClick={() => void act(() => approveStep('rubric'))}

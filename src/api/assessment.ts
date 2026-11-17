@@ -6,9 +6,12 @@
 
 import { authHeaders } from '../auth/auth';
 import { assessmentLlmHeaders } from './llmKey';
+import { assignmentId, reportSignedOut } from './session';
 
 const BASE = import.meta.env.VITE_ASSESSMENT_URL ?? '';
-export const ASSIGNMENT_ID = import.meta.env.VITE_ASSIGNMENT_ID ?? 'hw1_sorting';
+// An assignment's id is its lab's id, so this follows the lab the instructor
+// picked instead of a fixed VITE_ASSIGNMENT_ID.
+export { assignmentId };
 export const assessmentConfigured = BASE !== '';
 
 const TIMEOUT_MS = 20_000;
@@ -68,6 +71,11 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = TIME
     const res = await fetch(`${BASE}${path}`, { ...init, headers: await authHeaders(init.headers), signal: controller.signal });
     if (!res.ok) {
       // FastAPI puts the reason in "detail"; show it when there is one.
+      if (res.status === 401) {
+        reportSignedOut();
+        throw new Error('Your sign-in expired. Sign in again to continue.');
+      }
+      if (res.status === 403) throw new Error('This course belongs to another instructor.');
       const detail = await res.json().then(body => body?.detail, () => undefined);
       throw new Error(typeof detail === 'string'
         ? `The assessment agent returned an error (${res.status}): ${detail}`
@@ -89,7 +97,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = TIME
 
 /** Each student's current grade for the configured assignment: the newest result, including regrades. */
 export function getResults(): Promise<AssessmentResult[]> {
-  return request(`/results?assignment_id=${encodeURIComponent(ASSIGNMENT_ID)}&latest=true`);
+  return request(`/results?assignment_id=${encodeURIComponent(assignmentId())}&latest=true`);
 }
 
 /**
@@ -110,11 +118,11 @@ export function regradeResult(submissionId: string, instructions: string): Promi
 }
 
 export function getAssessmentAgentConfig(): Promise<AssessmentAgentConfigPayload> {
-  return request(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`);
+  return request(`/assignments/${encodeURIComponent(assignmentId())}/agent-config`);
 }
 
 export function saveAssessmentAgentConfig(config: AssessmentAgentConfigPayload): Promise<AssessmentAgentConfigPayload> {
-  return request(`/assignments/${encodeURIComponent(ASSIGNMENT_ID)}/agent-config`, {
+  return request(`/assignments/${encodeURIComponent(assignmentId())}/agent-config`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -157,7 +165,7 @@ export function importLabAsAssignment(labId: string): Promise<ImportAck> {
 export function submitForGrading(studentId: string, files: File[]): Promise<AssessmentResult> {
   const form = new FormData();
   form.append('student_id', studentId);
-  form.append('assignment_id', ASSIGNMENT_ID);
+  form.append('assignment_id', assignmentId());
   for (const file of files) form.append('files', file);
   // No Content-Type: the browser sets the multipart boundary.
   return request('/submit', { method: 'POST', headers: assessmentLlmHeaders(), body: form }, GRADING_TIMEOUT_MS);

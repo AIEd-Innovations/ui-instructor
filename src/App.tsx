@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './index.css';
 import MaterialPreview from './tabs/MaterialPreview';
 import LabQuizPreview from './tabs/LabQuizPreview';
@@ -12,13 +12,17 @@ import AgentConfigModal from './components/AgentConfigModal';
 import ApiKeyModal from './components/ApiKeyModal';
 import StudentDetailModal from './components/StudentDetailModal';
 import LoginPage from './components/LoginPage';
+import CourseLabPicker, { FirstCourse } from './components/CourseLabPicker';
 import { LabProvider } from './state/LabContext';
 import { useLab } from './state/labStore';
+import { SessionProvider } from './state/SessionContext';
+import { useSession } from './state/sessionStore';
 import { useLlmSettings } from './state/useLlmSettings';
 import { clearLlmKey, hasLlmKey } from './api/llmKey';
 import { signOut } from './auth/auth';
 import type { SignedInUser } from './auth/auth';
-import { COURSE_ID, formatSize, formatWhen, isConfigured } from './api/curriculum';
+import { formatSize, formatWhen, isConfigured } from './api/curriculum';
+import { clearSession, onSignedOut } from './api/session';
 
 type Tab = 'tasks' | 'quiz' | 'activity' | 'grades' | 'stats' | 'agents';
 
@@ -73,6 +77,7 @@ function MaterialFiles() {
 
 function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => void }) {
   const { lab } = useLab();
+  const { course } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showAgentConfig, setShowAgentConfig] = useState(false);
@@ -105,11 +110,12 @@ function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => v
           <div className="header-left">
             <h1>AI Ed Innovations</h1>
             <p>
-              {lab
-                ? `${lab.course_id.toUpperCase()} — ${lab.title}`
-                : `${COURSE_ID.toUpperCase()} — no lab generated yet`}
+              {course
+                ? `${course.name}${lab ? ` — ${lab.title}` : ' — no lab generated yet'}`
+                : 'No course yet'}
             </p>
           </div>
+          <CourseLabPicker />
           <button
             className={`api-key-btn${apiKey ? ' api-key-btn--set' : ''}`}
             onClick={() => setShowApiKey(true)}
@@ -177,23 +183,82 @@ function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => v
   );
 }
 
-export default function App() {
-  const [user, setUser] = useState<SignedInUser | null>(null);
+/**
+ * Between sign-in and the dashboard: ask the Curriculum Designer who this is
+ * (`GET /me`). A brand new instructor owns no course yet and has nowhere to put
+ * a lab, so they name their first one before the dashboard appears.
+ */
+function AfterSignIn({ user, onSignOut }: { user: SignedInUser; onSignOut: () => void }) {
+  const { courses, loading, error, reload } = useSession();
 
-  if (!user) {
-    return <LoginPage onLogin={setUser} />;
+  if (loading) {
+    return <div className="app-splash">Loading your courses…</div>;
   }
 
-  function handleSignOut() {
-    // The key belongs to whoever signed in, so it goes too.
-    clearLlmKey();
-    void signOut();
-    setUser(null);
+  if (error) {
+    return (
+      <div className="app-splash">
+        <div className="notice notice-error">{error}</div>
+        <button className="btn-outline" onClick={() => void reload()}>Try again</button>
+        <button className="btn-outline" onClick={onSignOut}>Sign out</button>
+      </div>
+    );
+  }
+
+  if (courses.length === 0) {
+    return <FirstCourse />;
   }
 
   return (
     <LabProvider>
-      <Dashboard user={user} onSignOut={handleSignOut} />
+      <Dashboard user={user} onSignOut={onSignOut} />
     </LabProvider>
+  );
+}
+
+export default function App() {
+  const [user, setUser] = useState<SignedInUser | null>(null);
+  const [expired, setExpired] = useState(false);
+
+  const handleSignOut = useCallback(() => {
+    // The key and the chosen course belong to whoever signed in, so they go too.
+    clearLlmKey();
+    clearSession();
+    void signOut();
+    setUser(null);
+  }, []);
+
+  // A token that expires while the dashboard is open: the next request comes
+  // back 401, and the instructor is sent back here to sign in again.
+  useEffect(() => {
+    onSignedOut(() => {
+      setExpired(true);
+      handleSignOut();
+    });
+    return () => onSignedOut(null);
+  }, [handleSignOut]);
+
+  if (!user) {
+    return (
+      <>
+        {expired && (
+          <div className="notice notice-error app-expired">
+            Your sign-in expired. Sign in again to continue.
+          </div>
+        )}
+        <LoginPage
+          onLogin={signedIn => {
+            setExpired(false);
+            setUser(signedIn);
+          }}
+        />
+      </>
+    );
+  }
+
+  return (
+    <SessionProvider>
+      <AfterSignIn user={user} onSignOut={handleSignOut} />
+    </SessionProvider>
   );
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { exportUrl, stepStatus } from '../api/curriculum';
+import { stepStatus } from '../api/curriculum';
 import GenerateLabModal from '../components/GenerateLabModal';
-import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
+import { ApprovalPill, ErrorState, ExportPdfButton, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
 export default function MaterialPreview() {
@@ -67,9 +67,7 @@ export default function MaterialPreview() {
             <button className="btn-outline" onClick={() => setShowGenerate(true)} disabled={busy}>
               Start over
             </button>
-            <a className="btn-outline" href={exportUrl('lab')} target="_blank" rel="noreferrer">
-              Export PDF
-            </a>
+            <ExportPdfButton kind="lab" />
             <div className="content-actions-divider" />
             <button
               className="btn-approve"

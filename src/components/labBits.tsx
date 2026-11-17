@@ -1,7 +1,7 @@
 // Small pieces shared by the Lab Tasks and Lab Quiz tabs.
 
 import { useState } from 'react';
-import { checkTypos } from '../api/curriculum';
+import { checkTypos, downloadExport } from '../api/curriculum';
 import type { ApprovalStatus, TypoIssue } from '../api/curriculum';
 import { useLab } from '../state/labStore';
 
@@ -37,6 +37,44 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
       <Notice kind="error">{message}</Notice>
       <button className="btn-outline" onClick={onRetry}>Try again</button>
     </div>
+  );
+}
+
+/**
+ * Download one of the agent's PDFs.
+ *
+ * Not a link: the export endpoint needs the ID token, and a plain `<a href>`
+ * sends no headers. The bytes are fetched and handed to the browser as a file.
+ */
+export function ExportPdfButton({
+  kind,
+  label = 'Export PDF',
+}: {
+  kind: 'lab' | 'quiz' | 'rubric';
+  label?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      await downloadExport(kind);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button className="btn-outline" onClick={() => void run()} disabled={busy}>
+        {busy ? 'Preparing…' : label}
+      </button>
+      {error && <Notice kind="error">{error}</Notice>}
+    </>
   );
 }
 

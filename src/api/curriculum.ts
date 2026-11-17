@@ -6,11 +6,9 @@
 
 import { authHeaders } from '../auth/auth';
 import { curriculumLlmHeaders } from './llmKey';
+import { courseId, instructorEmail, labId as currentLabId, reportSignedOut } from './session';
 
 const BASE: string = import.meta.env.VITE_CURRICULUM_URL ?? '';
-export const LAB_ID: string = import.meta.env.VITE_LAB_ID ?? 'lab4';
-export const COURSE_ID: string = import.meta.env.VITE_COURSE_ID ?? 'csc580';
-export const INSTRUCTOR_ID: string = import.meta.env.VITE_INSTRUCTOR_ID ?? 'instructor_1';
 
 export const isConfigured = (): boolean => BASE !== '';
 
@@ -100,6 +98,30 @@ export interface LabFileList {
   total_chars: number;
 }
 
+/** `GET /me` — who is signed in and which courses they own. */
+export interface Me {
+  user: { id: string; email: string; name: string };
+  courses: Course[];
+}
+
+export interface Course {
+  id: string;
+  name: string;
+}
+
+/** One row of a course's lab list — metadata only, no spec or quiz. */
+export interface LabSummary {
+  lab_id: string;
+  course_id: string;
+  title: string;
+  approval_status: ApprovalStatus;
+  spec_status: ApprovalStatus;
+  quiz_status: ApprovalStatus;
+  rubric_status: ApprovalStatus;
+  version: number;
+  last_updated: string;
+}
+
 export interface GenerateParams {
   title: string;
   learning_objectives: string[];
@@ -123,9 +145,22 @@ export class AgentError extends Error {
   }
 }
 
+/** A 401 from any agent: the ID token is missing, expired or rejected. */
+export const SIGNED_OUT = 'SIGNED_OUT';
+/** A 403: the course belongs to another instructor. */
+export const NOT_YOUR_COURSE = 'NOT_YOUR_COURSE';
+
 async function toAgentError(res: Response): Promise<AgentError> {
   let code = `HTTP_${res.status}`;
   let message = res.statusText || 'Request failed';
+  if (res.status === 401) {
+    // The agent's own text is for developers ("Invalid sign-in token: ...").
+    reportSignedOut();
+    return new AgentError('Your sign-in expired. Sign in again to continue.', SIGNED_OUT, 401);
+  }
+  if (res.status === 403) {
+    return new AgentError('This course belongs to another instructor.', NOT_YOUR_COURSE, 403);
+  }
   try {
     const body = await res.json();
     // FastAPI nests the envelope under "detail" for raised HTTPExceptions
@@ -185,22 +220,45 @@ const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+/**
+ * The chosen course, as the query parameter every lab endpoint takes. The agent
+ * answers 403 for a course the signed-in instructor does not own, so this is
+ * what keeps one teacher out of another's labs.
+ */
+const inCourse = (path: string): string =>
+  `${path}${path.includes('?') ? '&' : '?'}course_id=${encodeURIComponent(courseId())}`;
+
+// ── Who am I, and what do I teach ────────────────────────────────────────────
+
+/** The signed-in instructor and their courses. Creates the user on first sign-in. */
+export function getMe(): Promise<Me> {
+  return request<Me>('/me');
+}
+
+export function createCourse(name: string): Promise<Course> {
+  return request<Course>('/courses', json({ name }));
+}
+
+export function listCourseLabs(course: string): Promise<{ course_id: string; labs: LabSummary[] }> {
+  return request(`/courses/${encodeURIComponent(course)}/labs`);
+}
+
 // ── Lab material ─────────────────────────────────────────────────────────────
 
-export function getLab(labId: string = LAB_ID): Promise<LabMaterial> {
-  return request<LabMaterial>(`/curriculum/${labId}`);
+export function getLab(labId: string = currentLabId()): Promise<LabMaterial> {
+  return request<LabMaterial>(inCourse(`/curriculum/${labId}`));
 }
 
 export function generateLab(
   params: GenerateParams,
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<LabMaterial> {
   return request<LabMaterial>(
     '/curriculum/generate',
     json({
       lab_id: labId,
-      course_id: COURSE_ID,
-      instructor_id: INSTRUCTOR_ID,
+      course_id: courseId(),
+      instructor_id: instructorEmail(),
       ...params,
     }),
     true,
@@ -210,14 +268,14 @@ export function generateLab(
 /** Start a lab step by step: the agent writes only the spec, then waits for approval. */
 export function generateSpec(
   params: GenerateParams,
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<LabMaterial> {
   return request<LabMaterial>(
     '/curriculum/generate-spec',
     json({
       lab_id: labId,
-      course_id: COURSE_ID,
-      instructor_id: INSTRUCTOR_ID,
+      course_id: courseId(),
+      instructor_id: instructorEmail(),
       ...params,
     }),
     true,
@@ -231,19 +289,23 @@ export function generateSpec(
 export function generateStep(
   step: Step,
   feedback?: string,
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<LabMaterial> {
   return request<LabMaterial>(
-    `/curriculum/${labId}/steps/${step}/generate`,
-    json({ requested_by: INSTRUCTOR_ID, ...(feedback ? { feedback } : {}) }),
+    inCourse(`/curriculum/${labId}/steps/${step}/generate`),
+    json({ requested_by: instructorEmail(), ...(feedback ? { feedback } : {}) }),
     true,
   );
 }
 
-export function approveStep(step: Step, notes = '', labId: string = LAB_ID): Promise<LabMaterial> {
+export function approveStep(
+  step: Step,
+  notes = '',
+  labId: string = currentLabId(),
+): Promise<LabMaterial> {
   return request<LabMaterial>(
-    `/curriculum/${labId}/steps/${step}/approve`,
-    json({ approved_by: INSTRUCTOR_ID, notes }),
+    inCourse(`/curriculum/${labId}/steps/${step}/approve`),
+    json({ approved_by: instructorEmail(), notes }),
   );
 }
 
@@ -255,29 +317,29 @@ export function stepStatus(lab: LabMaterial, step: Step): ApprovalStatus {
   return lab[`${step}_status`] ?? (lab.approval_status === 'approved' ? 'approved' : 'pending');
 }
 
-export function approveLab(notes = '', labId: string = LAB_ID): Promise<LabMaterial> {
+export function approveLab(notes = '', labId: string = currentLabId()): Promise<LabMaterial> {
   return request<LabMaterial>(
-    `/curriculum/${labId}/approve`,
-    json({ approved_by: INSTRUCTOR_ID, notes }),
+    inCourse(`/curriculum/${labId}/approve`),
+    json({ approved_by: instructorEmail(), notes }),
   );
 }
 
 /** Records the feedback and regenerates quiz + rubric. The spec is preserved. */
 export function requestChanges(
   feedback: string,
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<LabMaterial> {
   return request<LabMaterial>(
-    `/curriculum/${labId}/request-changes`,
-    json({ feedback, requested_by: INSTRUCTOR_ID }),
+    inCourse(`/curriculum/${labId}/request-changes`),
+    json({ feedback, requested_by: instructorEmail() }),
     true,
   );
 }
 
 // ── Files ────────────────────────────────────────────────────────────────────
 
-export function listFiles(labId: string = LAB_ID): Promise<LabFileList> {
-  return request<LabFileList>(`/curriculum/${labId}/files`);
+export function listFiles(labId: string = currentLabId()): Promise<LabFileList> {
+  return request<LabFileList>(inCourse(`/curriculum/${labId}/files`));
 }
 
 export interface UploadAck {
@@ -289,11 +351,11 @@ export interface UploadAck {
 
 export function uploadMaterial(
   files: File[],
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<UploadAck> {
   const form = new FormData();
   for (const file of files) form.append('files', file);
-  return request<UploadAck>(`/curriculum/${labId}/upload-material`, {
+  return request<UploadAck>(inCourse(`/curriculum/${labId}/upload-material`), {
     method: 'POST',
     body: form, // no Content-Type: the browser sets the multipart boundary
   });
@@ -301,10 +363,10 @@ export function uploadMaterial(
 
 export function uploadInstructions(
   instructions: string,
-  labId: string = LAB_ID,
+  labId: string = currentLabId(),
 ): Promise<UploadAck> {
   return request<UploadAck>(
-    `/curriculum/${labId}/upload-instructions`,
+    inCourse(`/curriculum/${labId}/upload-instructions`),
     json({ instructions }),
   );
 }
@@ -315,8 +377,11 @@ export interface DeleteFileAck {
   message: string;
 }
 
-export function deleteFile(fileId: string, labId: string = LAB_ID): Promise<DeleteFileAck> {
-  return request<DeleteFileAck>(`/curriculum/${labId}/files/${fileId}`, {
+export function deleteFile(
+  fileId: string,
+  labId: string = currentLabId(),
+): Promise<DeleteFileAck> {
+  return request<DeleteFileAck>(inCourse(`/curriculum/${labId}/files/${fileId}`), {
     method: 'DELETE',
   });
 }
@@ -330,15 +395,56 @@ export interface TypoIssue {
 }
 
 /** Proofreads the spec, quiz and rubric. Does not change the lab. */
-export function checkTypos(labId: string = LAB_ID): Promise<{ issues_found: number; issues: TypoIssue[] }> {
-  return request(`/curriculum/${labId}/check-typos`, { method: 'POST' }, true);
+export function checkTypos(
+  labId: string = currentLabId(),
+): Promise<{ issues_found: number; issues: TypoIssue[] }> {
+  return request(inCourse(`/curriculum/${labId}/check-typos`), { method: 'POST' }, true);
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
-/** Direct download link — the agent streams a PDF with Content-Disposition. */
-export function exportUrl(kind: 'lab' | 'quiz' | 'rubric', labId: string = LAB_ID): string {
-  return `${BASE}/curriculum/${labId}/export/${kind}.pdf`;
+/**
+ * Download one of the PDFs the agent renders.
+ *
+ * It cannot be a plain `<a href>` any more: the export needs the ID token, and
+ * a link sends no headers. So fetch it with the token and hand the browser the
+ * bytes as a file instead.
+ */
+export async function downloadExport(
+  kind: 'lab' | 'quiz' | 'rubric',
+  labId: string = currentLabId(),
+): Promise<void> {
+  if (!BASE) {
+    throw new AgentError(
+      'VITE_CURRICULUM_URL is not set — the UI does not know where the Curriculum Designer is running.',
+      'NOT_CONFIGURED',
+      0,
+    );
+  }
+  const path = inCourse(`/curriculum/${labId}/export/${kind}.pdf`);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { headers: await authHeaders() });
+  } catch (err) {
+    throw new AgentError(
+      `Could not reach the Curriculum Designer at ${BASE}. Is it running?`,
+      'UNREACHABLE',
+      0,
+      err,
+    );
+  }
+  if (!res.ok) throw await toAgentError(res);
+
+  const url = URL.createObjectURL(await res.blob());
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${labId}-${kind}.pdf`;
+    link.click();
+  } finally {
+    // Give the click a tick to start the save before the blob goes away.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 }
 
 // ── Display helpers ──────────────────────────────────────────────────────────

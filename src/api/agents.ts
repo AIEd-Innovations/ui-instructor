@@ -3,8 +3,9 @@
 //
 // Set VITE_ORCHESTRATOR_URL=http://localhost:8000 in .env (copy from .env.example).
 
+import { labId } from './session';
+
 const BASE = import.meta.env.VITE_ORCHESTRATOR_URL ?? '';
-const LAB_ID = import.meta.env.VITE_LAB_ID ?? 'lab4';
 
 // ── Shared types (mirrors INTERFACE_CONTRACT.md shared schemas) ─────────────
 
@@ -91,7 +92,7 @@ async function get<T>(path: string): Promise<T | null> {
 
 export async function fetchDashboard(tab?: 'material' | 'activity' | 'grades' | 'stats'): Promise<DashboardPayload | null> {
   const query = tab ? `?tab=${tab}` : '';
-  return get<DashboardPayload>(`/orchestrator/instructor/dashboard/${LAB_ID}${query}`);
+  return get<DashboardPayload>(`/orchestrator/instructor/dashboard/${labId()}${query}`);
 }
 
 // ── Student Activity (polls every 10s per contract — v0.1) ──────────────────
@@ -115,7 +116,7 @@ export interface IntegrityAnalytics {
 }
 
 export async function fetchIntegrityAnalytics(): Promise<IntegrityAnalytics | null> {
-  return get<IntegrityAnalytics>(`/orchestrator/integrity/analytics/lab/${LAB_ID}`);
+  return get<IntegrityAnalytics>(`/orchestrator/integrity/analytics/lab/${labId()}`);
 }
 
 // ── Submission detail ────────────────────────────────────────────────────────
@@ -129,7 +130,7 @@ export async function fetchSubmission(submissionId: string) {
 export async function triggerGradeBatch(): Promise<{ submissions_queued: number } | null> {
   if (!BASE) return null;
   try {
-    const res = await fetch(`${BASE}/orchestrator/instructor/grade-batch?lab_id=${LAB_ID}`, { method: 'POST' });
+    const res = await fetch(`${BASE}/orchestrator/instructor/grade-batch?lab_id=${labId()}`, { method: 'POST' });
     if (!res.ok) return null;
     return await res.json();
   } catch {

@@ -1768,3 +1768,144 @@ h1, h2, p {
 .login-diagnostics dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 8px 0 0; }
 .login-diagnostics dt { font-weight: 600; }
 .login-diagnostics dd { margin: 0; word-break: break-all; }
+
+/* ── Course and lab pickers (header) ───────────────────────────────────────── */
+
+.picker {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.picker-field > span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.picker-field select {
+  min-width: 140px;
+  max-width: 220px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-text-dark);
+  background: var(--bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.picker-field select:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* ── Naming a course, and the first-run screen ─────────────────────────────── */
+
+.app-splash {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.app-expired {
+  margin: 0;
+  border-radius: 0;
+  text-align: center;
+}
+
+.first-course {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg-page);
+}
+
+.course-form {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  background: var(--bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.modal .course-form {
+  max-width: none;
+  padding: 16px 18px 18px;
+  border: none;
+  border-radius: 0;
+}
+
+.course-form h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: var(--color-text-dark);
+}
+
+.course-form p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.course-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.course-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text-dark);
+  background: var(--bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.course-form input:focus {
+  background: var(--bg-white);
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.course-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  .picker {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+  .picker-field select { min-width: 120px; }
+}

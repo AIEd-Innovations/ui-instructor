@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAssessmentAgentConfig, getResults, importLabAsAssignment, regradeResult, reviewResult, saveAssessmentAgentConfig, submitForGrading } from './assessment';
 import type { AssessmentResult } from './assessment';
 import { clearLlmKey, setLlmSettings } from './llmKey';
+import { clearSession, setSelection } from './session';
+
+// The assignment id is the chosen lab's id now, not a fixed VITE_ASSIGNMENT_ID.
+beforeEach(() => {
+  setSelection({ courseId: 'course-1', labId: 'hw1_sorting' });
+});
 
 function record(studentId: string, score: number): AssessmentResult {
   return {
@@ -35,6 +41,7 @@ function lastCall(): [string, RequestInit] {
 afterEach(() => {
   vi.unstubAllGlobals();
   clearLlmKey();
+  clearSession();
 });
 
 describe('getResults', () => {

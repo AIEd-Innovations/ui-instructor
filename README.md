@@ -39,8 +39,33 @@ Vite only exposes variables that start with `VITE_`, and they end up in the brow
 | Variable | Default | Purpose |
 |---|---|---|
 | `VITE_CURRICULUM_URL` | none (the UI shows a "not configured" banner) | where the Curriculum Designer is running |
-| `VITE_LAB_ID` | `lab4` | which lab the dashboard shows |
-| `VITE_COURSE_ID`, `VITE_INSTRUCTOR_ID` | `csc580`, `instructor_1` | sent to the agent when generating and approving |
+
+The course, the lab, the instructor and the assignment used to be settings
+(`VITE_COURSE_ID`, `VITE_LAB_ID`, `VITE_INSTRUCTOR_ID`, `VITE_ASSIGNMENT_ID`),
+which meant every teacher saw the same lab. They are gone: see **Your courses
+and labs** below.
+
+## Your courses and labs
+
+After sign-in the dashboard asks the Curriculum Designer `GET /me` — who is
+signed in, and which courses they own.
+
+- **No courses yet:** a "Create your first course" form (`POST /courses`, a
+  name is all it takes). Labs live in a course, and a course has one owner.
+- **One or more:** a course picker in the header, with **+ New course…**, and
+  beside it a lab picker for that course (`GET /courses/{id}/labs`) with
+  **+ New lab…**. A new lab gets its own id from its title, and the Generate
+  dialog creates it.
+
+Every request carries the chosen course, so the agents can tell whose lab it
+is: `401` means the sign-in expired (the dashboard returns to the sign-in page
+and says so), `403` means the course belongs to another instructor. An
+assignment's id is its lab's id, so the Student Submissions tab follows the
+same picker. Nothing is remembered between reloads: `GET /me` runs again and
+the first course and its newest lab open.
+
+PDF exports are downloaded with `fetch` and the ID token rather than a plain
+link, because a link cannot carry a token.
 
 ## Signing in
 
