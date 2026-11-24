@@ -5,6 +5,7 @@
 // does not call the agent and shows sample data instead.
 
 import { authHeaders } from '../auth/auth';
+import { getCourseId, withCourse } from '../state/course';
 import { assessmentLlmHeaders } from './llmKey';
 
 const BASE = import.meta.env.VITE_ASSESSMENT_URL ?? '';
@@ -65,7 +66,8 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = TIME
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${BASE}${path}`, { ...init, headers: await authHeaders(init.headers), signal: controller.signal });
+    // Every assessment request is for one course, and the agent checks the caller owns it.
+    const res = await fetch(`${BASE}${withCourse(path)}`, { ...init, headers: await authHeaders(init.headers), signal: controller.signal });
     if (!res.ok) {
       // FastAPI puts the reason in "detail"; show it when there is one.
       const detail = await res.json().then(body => body?.detail, () => undefined);
@@ -156,6 +158,7 @@ export function importLabAsAssignment(labId: string): Promise<ImportAck> {
  */
 export function submitForGrading(studentId: string, files: File[]): Promise<AssessmentResult> {
   const form = new FormData();
+  form.append('course_id', getCourseId());
   form.append('student_id', studentId);
   form.append('assignment_id', ASSIGNMENT_ID);
   for (const file of files) form.append('files', file);

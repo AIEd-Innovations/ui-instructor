@@ -173,3 +173,29 @@ describe('submitForGrading', () => {
     await expect(submitForGrading('s', [new File(['x'], 'a.pdf')])).rejects.toThrow('a.pdf is not a UTF-8 text file');
   });
 });
+
+describe('course on every request', () => {
+  it('adds the current course to reads, grades and settings', async () => {
+    stubFetch(async () => Response.json([]));
+    const { setCourse } = await import('../state/course');
+    setCourse('course-a');
+    await getResults();
+    expect(lastCall()[0]).toContain('&course_id=course-a');
+    await reviewResult('s1', 80, '');
+    expect(lastCall()[0]).toContain('/results/s1/review?course_id=course-a');
+    await getAssessmentAgentConfig();
+    expect(lastCall()[0]).toContain('/agent-config?course_id=course-a');
+    await importLabAsAssignment('lab4');
+    expect(lastCall()[0]).toContain('/assignments/import/lab4?course_id=course-a');
+    setCourse('csc580');
+  });
+
+  it('sends the course as a form field when submitting files', async () => {
+    stubFetch(async () => Response.json(record('alex_morgan', 90)));
+    const { setCourse } = await import('../state/course');
+    setCourse('course-a');
+    await submitForGrading('alex_morgan', [new File(['x'], 'a.py')]);
+    expect((lastCall()[1].body as FormData).get('course_id')).toBe('course-a');
+    setCourse('csc580');
+  });
+});
