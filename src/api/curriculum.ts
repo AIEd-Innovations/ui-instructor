@@ -5,11 +5,11 @@
 // the curriculum-designer repo.
 
 import { authHeaders } from '../auth/auth';
+import { getCourseId, withCourse } from '../state/course';
 import { curriculumLlmHeaders } from './llmKey';
 
 const BASE: string = import.meta.env.VITE_CURRICULUM_URL ?? '';
 export const LAB_ID: string = import.meta.env.VITE_LAB_ID ?? 'lab4';
-export const COURSE_ID: string = import.meta.env.VITE_COURSE_ID ?? 'csc580';
 export const INSTRUCTOR_ID: string = import.meta.env.VITE_INSTRUCTOR_ID ?? 'instructor_1';
 
 export const isConfigured = (): boolean => BASE !== '';
@@ -160,7 +160,9 @@ async function request<T>(path: string, init?: RequestInit, usesModel = false): 
   let res: Response;
   try {
     const headers = usesModel ? { ...(init?.headers as Record<string, string> | undefined), ...curriculumLlmHeaders() } : init?.headers;
-    res = await fetch(`${BASE}${path}`, { ...init, headers: await authHeaders(headers), signal: controller.signal });
+    // A lab belongs to a course, and the agent only lets its owner touch it.
+    const url = path.startsWith('/curriculum/') ? withCourse(path) : path;
+    res = await fetch(`${BASE}${url}`, { ...init, headers: await authHeaders(headers), signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new AgentError('The Curriculum Designer took too long to respond.', 'TIMEOUT', 0, err);
@@ -185,6 +187,27 @@ const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+// ── Who is signed in, and their courses ──────────────────────────────────────
+
+export interface CourseSummary {
+  id: string;
+  name: string;
+}
+
+export interface Me {
+  user: { id: string; email: string; name: string };
+  courses: CourseSummary[];
+}
+
+/** The signed-in instructor and the courses they own. Fails on an agent that predates courses. */
+export function getMe(): Promise<Me> {
+  return request<Me>('/me');
+}
+
+export function createCourse(name: string): Promise<CourseSummary> {
+  return request<CourseSummary>('/courses', json({ name }));
+}
+
 // ── Lab material ─────────────────────────────────────────────────────────────
 
 export function getLab(labId: string = LAB_ID): Promise<LabMaterial> {
@@ -199,7 +222,7 @@ export function generateLab(
     '/curriculum/generate',
     json({
       lab_id: labId,
-      course_id: COURSE_ID,
+      course_id: getCourseId(),
       instructor_id: INSTRUCTOR_ID,
       ...params,
     }),
@@ -216,7 +239,7 @@ export function generateSpec(
     '/curriculum/generate-spec',
     json({
       lab_id: labId,
-      course_id: COURSE_ID,
+      course_id: getCourseId(),
       instructor_id: INSTRUCTOR_ID,
       ...params,
     }),
@@ -336,9 +359,30 @@ export function checkTypos(labId: string = LAB_ID): Promise<{ issues_found: numb
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
-/** Direct download link — the agent streams a PDF with Content-Disposition. */
-export function exportUrl(kind: 'lab' | 'quiz' | 'rubric', labId: string = LAB_ID): string {
-  return `${BASE}/curriculum/${labId}/export/${kind}.pdf`;
+/**
+ * Download a PDF. A plain link cannot carry the sign-in token, so the request is made here and
+ * the file is handed to the browser.
+ */
+export async function downloadExport(kind: 'lab' | 'quiz' | 'rubric', labId: string = LAB_ID): Promise<void> {
+  if (!BASE) throw new AgentError('VITE_CURRICULUM_URL is not set.', 'NOT_CONFIGURED', 0);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${withCourse(`/curriculum/${labId}/export/${kind}.pdf`)}`, {
+      headers: await authHeaders(),
+    });
+  } catch (err) {
+    throw new AgentError(`Could not reach the Curriculum Designer at ${BASE}. Is it running?`, 'UNREACHABLE', 0, err);
+  }
+  if (!res.ok) throw await toAgentError(res);
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${labId}-${kind}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ── Display helpers ──────────────────────────────────────────────────────────

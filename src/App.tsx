@@ -18,7 +18,9 @@ import { useLlmSettings } from './state/useLlmSettings';
 import { clearLlmKey, hasLlmKey } from './api/llmKey';
 import { signOut } from './auth/auth';
 import type { SignedInUser } from './auth/auth';
-import { COURSE_ID, formatSize, formatWhen, isConfigured } from './api/curriculum';
+import { formatSize, formatWhen, isConfigured } from './api/curriculum';
+import CoursePicker from './components/CoursePicker';
+import { useCourse } from './state/useCourse';
 
 type Tab = 'tasks' | 'quiz' | 'activity' | 'grades' | 'stats' | 'agents';
 
@@ -73,6 +75,7 @@ function MaterialFiles() {
 
 function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => void }) {
   const { lab } = useLab();
+  const course = useCourse();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showAgentConfig, setShowAgentConfig] = useState(false);
@@ -106,10 +109,11 @@ function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => v
             <h1>AI Ed Innovations</h1>
             <p>
               {lab
-                ? `${lab.course_id.toUpperCase()} — ${lab.title}`
-                : `${COURSE_ID.toUpperCase()} — no lab generated yet`}
+                ? `${course.name ?? lab.course_id.toUpperCase()} — ${lab.title}`
+                : `${course.name ?? course.id.toUpperCase()} — no lab generated yet`}
             </p>
           </div>
+          <CoursePicker />
           <button
             className={`api-key-btn${apiKey ? ' api-key-btn--set' : ''}`}
             onClick={() => setShowApiKey(true)}
@@ -179,6 +183,7 @@ function Dashboard({ user, onSignOut }: { user: SignedInUser; onSignOut: () => v
 
 export default function App() {
   const [user, setUser] = useState<SignedInUser | null>(null);
+  const course = useCourse();
 
   if (!user) {
     return <LoginPage onLogin={setUser} />;
@@ -192,7 +197,8 @@ export default function App() {
   }
 
   return (
-    <LabProvider>
+    // Keyed by course: choosing another one starts the dashboard over with that course's lab.
+    <LabProvider key={course.id}>
       <Dashboard user={user} onSignOut={handleSignOut} />
     </LabProvider>
   );

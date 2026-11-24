@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { assessmentConfigured, importLabAsAssignment } from '../api/assessment';
-import { LAB_ID, exportUrl, stepStatus } from '../api/curriculum';
+import { LAB_ID, downloadExport, stepStatus } from '../api/curriculum';
 import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
 
@@ -88,9 +88,9 @@ export default function LabQuizPreview() {
           <button className="btn-outline" onClick={() => setShowAnswers(a => !a)}>
             {showAnswers ? 'Hide answers' : 'Show answers'}
           </button>
-          <a className="btn-outline" href={exportUrl('quiz')} target="_blank" rel="noreferrer">
+          <button className="btn-outline" onClick={() => void act(() => downloadExport('quiz'))}>
             Export PDF
-          </a>
+          </button>
           <div className="content-actions-divider" />
           <button
             className="btn-approve"
@@ -185,9 +185,9 @@ export default function LabQuizPreview() {
                   </li>
                 ))}
               </ul>
-              <a className="btn-outline" href={exportUrl('rubric')} target="_blank" rel="noreferrer">
+              <button className="btn-outline" onClick={() => void act(() => downloadExport('rubric'))}>
                 Export rubric PDF
-              </a>{' '}
+              </button>{' '}
               <button
                 className="btn-approve"
                 onClick={() => void act(() => approveStep('rubric'))}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { exportUrl, stepStatus } from '../api/curriculum';
+import { downloadExport, stepStatus } from '../api/curriculum';
 import GenerateLabModal from '../components/GenerateLabModal';
 import { ApprovalPill, ErrorState, LoadingState, Notice, RefineBar, TypoCheck } from '../components/labBits';
 import { useLab } from '../state/labStore';
@@ -43,6 +43,15 @@ export default function MaterialPreview() {
 
   const specStatus = stepStatus(lab, 'spec');
 
+  async function exportPdf(kind: 'lab' | 'quiz' | 'rubric') {
+    setActionError(null);
+    try {
+      await downloadExport(kind);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function onApprove() {
     setActionError(null);
     try {
@@ -67,9 +76,9 @@ export default function MaterialPreview() {
             <button className="btn-outline" onClick={() => setShowGenerate(true)} disabled={busy}>
               Start over
             </button>
-            <a className="btn-outline" href={exportUrl('lab')} target="_blank" rel="noreferrer">
+            <button className="btn-outline" onClick={() => void exportPdf('lab')}>
               Export PDF
-            </a>
+            </button>
             <div className="content-actions-divider" />
             <button
               className="btn-approve"
